@@ -1,0 +1,469 @@
+diff --git a/base/StorageIntf.cpp b/base/StorageIntf.cpp
+index f26981f8..8704f245 100644
+--- a/base/StorageIntf.cpp
++++ b/base/StorageIntf.cpp
+@@ -9,6 +9,8 @@
+ // Universal Storage System
+ //---------------------------------------------------------------------------
+ #include "tjsCommHead.h"
++#include <cstdio>
++#include <cctype>
+ 
+ #include <algorithm>
+ #include <stdexcept>
+@@ -1070,11 +1072,26 @@ void TVPAddAutoPath(const ttstr & name)
+ {
+ 	tTJSCriticalSectionHolder cs_holder(TVPCreateStreamCS);
+ 
+-	tjs_char lastchar = name.GetLastChar();
++	ttstr fixed(name);
++	tjs_char lastchar = fixed.GetLastChar();
+ 	if(lastchar != TVPArchiveDelimiter && lastchar != TJS_W('/') && lastchar != TJS_W('\\'))
+-		TVPThrowExceptionMessage(TVPMissingPathDelimiterAtLast);
++	{
++		tjs_uint len = fixed.GetLen();
++		bool is_archive = false;
++		if(len >= 4)
++		{
++			const tjs_char *p = fixed.c_str() + len - 4;
++			tjs_char c0 = p[0], c1 = p[1], c2 = p[2], c3 = p[3];
++			if(c1 >= TJS_W('A') && c1 <= TJS_W('Z')) c1 = (tjs_char)(c1 + 32);
++			if(c2 >= TJS_W('A') && c2 <= TJS_W('Z')) c2 = (tjs_char)(c2 + 32);
++			if(c3 >= TJS_W('A') && c3 <= TJS_W('Z')) c3 = (tjs_char)(c3 + 32);
++			is_archive = (c0 == TJS_W('.') && c1 == TJS_W('x') && c2 == TJS_W('p') && c3 == TJS_W('3'));
++		}
++		TVPAddLog(ttstr(TJS_W("[KH] TVPAddAutoPath missing delimiter: ")) + fixed);
++		fixed += is_archive ? TVPArchiveDelimiter : TJS_W('/');
++	}
+ 
+-	ttstr normalized = TVPNormalizeStorageName(name);
++	ttstr normalized = TVPNormalizeStorageName(fixed);
+ 
+ 	std::vector<ttstr>::iterator i =
+ 		std::find(TVPAutoPathList.begin(), TVPAutoPathList.end(), normalized);
+diff --git a/sound/WaveIntf.cpp b/sound/WaveIntf.cpp
+index a0525043..01bdaf2f 100644
+--- a/sound/WaveIntf.cpp
++++ b/sound/WaveIntf.cpp
+@@ -795,6 +795,9 @@ tTVPWaveDecoder * tTVPWDC_RIFFWave::Create(const ttstr & storagename,
+ #ifdef TVP_OPUS_DECODER_IMPLEMENT
+ extern void TVPRegisterOpusDecoderCreator();
+ #endif
++#ifdef __EMSCRIPTEN__
++extern void TVPRegisterFFmpegWaveDecoderCreator();
++#endif
+ //---------------------------------------------------------------------------
+ // tTVPWaveDecoder interface management
+ //---------------------------------------------------------------------------
+@@ -808,6 +811,12 @@ struct tTVPWaveDecoderManager
+ 	{
+ 		TVPWaveDecoderManagerAvail = true;
+ 		TVPRegisterWaveDecoderCreator(&RIFFWaveDecoderCreator);
++#ifdef __EMSCRIPTEN__
++		// FFmpeg goes before the built-in Opus decoder: BGM tracks in some
++		// games are .opus, and the built-in creator did not manage to open
++		// them (BGM.tjs then throws "BGM file not found").
++		TVPRegisterFFmpegWaveDecoderCreator();
++#endif
+ #ifdef TVP_OPUS_DECODER_IMPLEMENT
+ 		TVPRegisterOpusDecoderCreator();
+ #endif
+diff --git a/tjs2/tjsArray.cpp b/tjs2/tjsArray.cpp
+index 530c6782..dca8f9c1 100644
+--- a/tjs2/tjsArray.cpp
++++ b/tjs2/tjsArray.cpp
+@@ -115,11 +115,22 @@ void tTJSStringAppender::Append(const tjs_char *string, tjs_int len)
+ 
+ 
+ 
++//---------------------------------------------------------------------------
++// C++17 removed std::binary_function; keep the same typedef contract locally.
++//---------------------------------------------------------------------------
++template <class Arg1, class Arg2, class Result>
++struct tTJSArrayBinaryFunction
++{
++	typedef Arg1 first_argument_type;
++	typedef Arg2 second_argument_type;
++	typedef Result result_type;
++};
++
+ //---------------------------------------------------------------------------
+ // tTJSArraySortCompare  : a class for comarison operator
+ //---------------------------------------------------------------------------
+ class tTJSArraySortCompare_NormalAscending :
+-	public std::binary_function<const tTJSVariant &, const tTJSVariant &, bool>
++	public tTJSArrayBinaryFunction<const tTJSVariant &, const tTJSVariant &, bool>
+ {
+ public:
+ 	result_type operator () (first_argument_type lhs, second_argument_type rhs) const
+@@ -128,7 +139,7 @@ public:
+ 	}
+ };
+ class tTJSArraySortCompare_NormalDescending :
+-	public std::binary_function<const tTJSVariant &, const tTJSVariant &, bool>
++	public tTJSArrayBinaryFunction<const tTJSVariant &, const tTJSVariant &, bool>
+ {
+ public:
+ 	result_type operator () (first_argument_type lhs, second_argument_type rhs) const
+@@ -137,7 +148,7 @@ public:
+ 	}
+ };
+ class tTJSArraySortCompare_NumericAscending :
+-	public std::binary_function<const tTJSVariant &, const tTJSVariant &, bool>
++	public tTJSArrayBinaryFunction<const tTJSVariant &, const tTJSVariant &, bool>
+ {
+ public:
+ 	result_type operator () (first_argument_type lhs, second_argument_type rhs) const
+@@ -153,7 +164,7 @@ public:
+ 	}
+ };
+ class tTJSArraySortCompare_NumericDescending :
+-	public std::binary_function<const tTJSVariant &, const tTJSVariant &, bool>
++	public tTJSArrayBinaryFunction<const tTJSVariant &, const tTJSVariant &, bool>
+ {
+ public:
+ 	result_type operator () (first_argument_type lhs, second_argument_type rhs) const
+@@ -169,7 +180,7 @@ public:
+ 	}
+ };
+ class tTJSArraySortCompare_StringAscending :
+-	public std::binary_function<const tTJSVariant &, const tTJSVariant &, bool>
++	public tTJSArrayBinaryFunction<const tTJSVariant &, const tTJSVariant &, bool>
+ {
+ public:
+ 	result_type operator () (first_argument_type lhs, second_argument_type rhs) const
+@@ -180,7 +191,7 @@ public:
+ 	}
+ };
+ class tTJSArraySortCompare_StringDescending :
+-	public std::binary_function<const tTJSVariant &, const tTJSVariant &, bool>
++	public tTJSArrayBinaryFunction<const tTJSVariant &, const tTJSVariant &, bool>
+ {
+ public:
+ 	result_type operator () (first_argument_type lhs, second_argument_type rhs) const
+@@ -191,7 +202,7 @@ public:
+ 	}
+ };
+ class tTJSArraySortCompare_Functional :
+-	public std::binary_function<const tTJSVariant &, const tTJSVariant &, bool>
++	public tTJSArrayBinaryFunction<const tTJSVariant &, const tTJSVariant &, bool>
+ {
+ 	tTJSVariantClosure Closure;
+ public:
+diff --git a/tjs2/tjsString.cpp b/tjs2/tjsString.cpp
+index 7ba339f8..d7c6c7d6 100644
+--- a/tjs2/tjsString.cpp
++++ b/tjs2/tjsString.cpp
+@@ -299,10 +299,9 @@ tTJSString TJSInt32ToHex(tjs_uint32 num, int zeropad)
+ 		*(p++) = (TJS_W("0123456789ABCDEF"))[num % 16];
+ 		num /= 16;
+ 		zeropad --;
+-	} while(zeropad || num);
++	} while(zeropad > 0 || num);
+ 
+-	p--;
+-	while(buf <= p) *(d++) = *(p--);
++	while(p != buf) *(d++) = *--p;
+ 	*d = 0;
+ 
+ 	return ttstr(buf2); 
+diff --git a/visual/FreeType.cpp b/visual/FreeType.cpp
+index ed71dd37..91558f56 100644
+--- a/visual/FreeType.cpp
++++ b/visual/FreeType.cpp
+@@ -44,6 +44,7 @@
+ #endif
+ 
+ extern bool TVPEncodeUTF8ToUTF16( tjs_string &output, const std::string &source );
++extern const tjs_char *TVPGetDefaultFontName();
+ 
+ //---------------------------------------------------------------------------
+ 
+@@ -175,6 +176,14 @@ static void TVPClearFaceList() { if( FreeTypeFaceList ) delete FreeTypeFaceList,
+ static tTVPAtExit TVPClearFaceListAtExit
+ 	(TVP_ATEXIT_PRI_SHUTDOWN, TVPClearFaceList);
+ //---------------------------------------------------------------------------
++tBaseFreeTypeFace *TVPCreateFontFaceForWebDraw(const tjs_string &name, tjs_uint32 options) {
++    TVPInitializeFont();
++    TVPInitializeFaceList();
++    auto face = FreeTypeFaceList->GetFace(name, options);
++    if(!face) TVPThrowExceptionMessage(TVPFontCannotBeUsed, ttstr(name));
++    return face;
++}
++//---------------------------------------------------------------------------
+ bool TVPAddFontToFreeType( const ttstr& storage, std::vector<tjs_string>* faces ) {
+ 	TVPInitializeFaceList();
+ 	return FreeTypeFaceList->LoadFont( storage.AsStdString(), faces );
+@@ -399,6 +408,27 @@ tBaseFreeTypeFace* tTVPFreeTypeFaceList::GetFace( const tjs_string& facename, tj
+ 			return new tGenericFreeTypeFace( font->path, ttstr( facename ), font->index );
+ 		}
+ 	}
++#ifdef __EMSCRIPTEN__
++	// PreRenderFontEx appends "$s" to a registered face for its native helper.
++	// Prefer an exact face above, then reuse the underlying font on the web.
++	const tjs_string helperSuffix = TJS_W("$s");
++	if (facename.size() > helperSuffix.size() &&
++		facename.compare(facename.size() - helperSuffix.size(), helperSuffix.size(), helperSuffix) == 0)
++	{
++		return GetFace(facename.substr(0, facename.size() - helperSuffix.size()), options);
++	}
++	// Portable/translated packages can retain a Windows face name after replacing
++	// the font file. Use the configured web font rather than aborting text layout.
++	if (!faces_.empty())
++	{
++		const tjs_string defaultFace = TVPGetDefaultFontName();
++		auto fallback = std::find_if(faces_.begin(), faces_.end(), [&defaultFace](const FontInfo* x) {
++			return x->facename == defaultFace || std::find(x->aliases.begin(), x->aliases.end(), defaultFace) != x->aliases.end();
++		});
++		FontInfo* font = fallback != faces_.end() ? *fallback : faces_.front();
++		return new tGenericFreeTypeFace(ttstr(font->filename), TVP_FACE_OPTIONS_FACE_INDEX(font->index), font->file.get());
++	}
++#endif
+ 	return nullptr;
+ }
+ //---------------------------------------------------------------------------
+diff --git a/visual/FreeTypeFace.h b/visual/FreeTypeFace.h
+index 2d804ef9..78cf615e 100644
+--- a/visual/FreeTypeFace.h
++++ b/visual/FreeTypeFace.h
+@@ -49,3 +49,6 @@ public:
+ 
+ #endif
+ 
++
++// Independent face ownership for the Web vector drawing plugin.
++extern tBaseFreeTypeFace *TVPCreateFontFaceForWebDraw(const tjs_string &name, tjs_uint32 options);
+diff --git a/visual/GraphicsLoaderIntf.h b/visual/GraphicsLoaderIntf.h
+index 62f74afe..80d0f690 100644
+--- a/visual/GraphicsLoaderIntf.h
++++ b/visual/GraphicsLoaderIntf.h
+@@ -162,6 +162,10 @@ extern void TVPLoadJPEG(void* formatdata, void *callbackdata, tTVPGraphicSizeCal
+ 	tTVPGraphicScanLineCallback scanlinecallback, tTVPMetaInfoPushCallback metainfopushcallback,
+ 	tTJSBinaryStream *src, tjs_int keyidx,  tTVPGraphicLoadMode mode);
+ 
++extern void TVPLoadWEBP(void* formatdata, void *callbackdata, tTVPGraphicSizeCallback sizecallback,
++	tTVPGraphicScanLineCallback scanlinecallback, tTVPMetaInfoPushCallback metainfopushcallback,
++	tTJSBinaryStream *src, tjs_int keyidx,  tTVPGraphicLoadMode mode);
++extern void TVPLoadHeaderWEBP(void* formatdata, tTJSBinaryStream *src, iTJSDispatch2** dic);
+ extern void TVPLoadPNG(void* formatdata, void *callbackdata, tTVPGraphicSizeCallback sizecallback,
+ 	tTVPGraphicScanLineCallback scanlinecallback, tTVPMetaInfoPushCallback metainfopushcallback,
+ 	tTJSBinaryStream *src, tjs_int keyidx,  tTVPGraphicLoadMode mode);
+diff --git a/visual/LayerIntf.cpp b/visual/LayerIntf.cpp
+index f8719552..1ca2260d 100644
+--- a/visual/LayerIntf.cpp
++++ b/visual/LayerIntf.cpp
+@@ -7167,6 +7167,74 @@ TJS_BEGIN_NATIVE_METHOD_DECL(/*func. name*/copyRect)
+ }
+ TJS_END_NATIVE_METHOD_DECL(/*func. name*/copyRect)
+ //----------------------------------------------------------------------
++#ifdef __EMSCRIPTEN__
++TJS_BEGIN_NATIVE_METHOD_DECL(/*func. name*/clipAlphaRect)
++{
++	TJS_GET_NATIVE_INSTANCE(/*var. name*/_this, /*var. type*/tTJSNI_Layer);
++	if(numparams < 7) return TJS_E_BADPARAMCOUNT;
++
++	tTJSNI_BaseLayer *source = nullptr;
++	auto object = param[2]->AsObjectNoAddRef();
++	if(!object || TJS_FAILED(object->NativeInstanceSupport(TJS_NIS_GETINSTANCE,
++		tTJSNC_Layer::ClassID, reinterpret_cast<iTJSNativeInstance **>(&source))) || !source)
++		TVPThrowExceptionMessage(TVPSpecifyLayer);
++
++	auto destination = _this->GetMainImage();
++	auto sourceImage = source->GetMainImage();
++	if(!destination || !sourceImage || !destination->Is32BPP() || !sourceImage->Is32BPP())
++		return TJS_E_INVALIDPARAM;
++
++	const tjs_int64 dx = static_cast<tjs_int>(*param[0]), dy = static_cast<tjs_int>(*param[1]);
++	const tjs_int64 sx = static_cast<tjs_int>(*param[3]), sy = static_cast<tjs_int>(*param[4]);
++	const tjs_int64 width = static_cast<tjs_int>(*param[5]), height = static_cast<tjs_int>(*param[6]);
++	if(width <= 0 || height <= 0) return TJS_E_INVALIDPARAM;
++
++	const tTVPRect clip(_this->GetClipLeft(), _this->GetClipTop(),
++		_this->GetClipLeft() + _this->GetClipWidth(), _this->GetClipTop() + _this->GetClipHeight());
++	const tjs_int64 srcX = dx - sx, srcY = dy - sy;
++	const tjs_int64 left = std::max<tjs_int64>({clip.left, dx, srcX});
++	const tjs_int64 top = std::max<tjs_int64>({clip.top, dy, srcY});
++	const tjs_int64 right = std::min<tjs_int64>({clip.right, dx + width, srcX + sourceImage->GetWidth()});
++	const tjs_int64 bottom = std::min<tjs_int64>({clip.bottom, dy + height, srcY + sourceImage->GetHeight()});
++	const tjs_int clear = numparams > 7 && param[7]->Type() != tvtVoid ? param[7]->AsInteger() : -1;
++	const bool additive = _this->GetType() == ltAddAlpha;
++	const bool clearOutside = clear >= 0 && clear < 256 && (!additive || clear < 255);
++	if(!clearOutside && (left >= right || top >= bottom)) return TJS_S_OK;
++
++	// The bitmap is copy-on-write, including when source and destination coincide.
++	const tTVPBaseBitmap mask(*sourceImage);
++	_this->GetMainImagePixelBufferForWrite();
++	const tTVPRect affected = clearOutside ? clip : tTVPRect(left, top, right, bottom);
++	for(tjs_int y = affected.top; y < affected.bottom; ++y)
++	{
++		auto pixels = static_cast<tjs_uint32 *>(destination->GetScanLineForWrite(y));
++		const auto maskRow = y >= top && y < bottom && left < right ?
++			static_cast<const tjs_uint32 *>(mask.GetScanLine(y - srcY)) : nullptr;
++		for(tjs_int x = affected.left; x < affected.right; ++x)
++		{
++			const bool inside = maskRow && x >= left && x < right;
++			if(!inside && !additive)
++			{
++				pixels[x] = (pixels[x] & 0x00ffffff) | (static_cast<tjs_uint32>(clear) << 24);
++				continue;
++			}
++
++			const tjs_uint32 opacity = inside ? maskRow[x - srcX] >> 24 : clear;
++			const auto scale = [opacity](tjs_uint32 channel) {
++				const tjs_uint32 product = (channel & 0xff) * opacity;
++				return (product + (product >> 7)) >> 8;
++			};
++			const tjs_uint32 pixel = pixels[x];
++			pixels[x] = (scale(pixel >> 24) << 24) | (additive ?
++				(scale(pixel >> 16) << 16) | (scale(pixel >> 8) << 8) | scale(pixel) : pixel & 0x00ffffff);
++		}
++	}
++	_this->Update(affected);
++	return TJS_S_OK;
++}
++TJS_END_NATIVE_METHOD_DECL(/*func. name*/clipAlphaRect)
++//----------------------------------------------------------------------
++#endif
+ TJS_BEGIN_NATIVE_METHOD_DECL(/*func. name*/copy9Patch)
+ {
+ 	TJS_GET_NATIVE_INSTANCE(/*var. name*/_this, /*var. type*/tTJSNI_Layer);
+diff --git a/visual/LoadPNG.cpp b/visual/LoadPNG.cpp
+index e9653e3e..1a156559 100644
+--- a/visual/LoadPNG.cpp
++++ b/visual/LoadPNG.cpp
+@@ -155,6 +155,18 @@ void TVPLoadPNG(void* formatdata, void *callbackdata, tTVPGraphicSizeCallback si
+ 	tTVPGraphicScanLineCallback scanlinecallback, tTVPMetaInfoPushCallback metainfopushcallback,
+ 	tTJSBinaryStream *src, tjs_int keyidx,  tTVPGraphicLoadMode mode)
+ {
++	{
++		unsigned char sniff[16];
++		const tjs_uint64 pos = src->GetPosition();
++		if(src->Read(sniff, sizeof(sniff)) == (tjs_uint)sizeof(sniff)) {
++			src->SetPosition(pos);
++			if(!memcmp(sniff, "RIFF", 4) && !memcmp(sniff + 8, "WEBPVP8", 7)) {
++				TVPLoadWEBP(formatdata, callbackdata, sizecallback, scanlinecallback,
++					metainfopushcallback, src, keyidx, mode);
++				return;
++			}
++		} else src->SetPosition(pos);
++	}
+ 	png_structp png_ptr=NULL;
+ 	png_infop info_ptr=NULL;
+ 	png_infop end_info=NULL;
+@@ -573,6 +585,17 @@ void TVPSaveAsPNG(void* formatdata, tTJSBinaryStream* dst, const tTVPBaseBitmap*
+ 
+ void TVPLoadHeaderPNG(void* formatdata, tTJSBinaryStream *src, iTJSDispatch2** dic )
+ {
++	{
++		unsigned char sniff[16];
++		const tjs_uint64 pos = src->GetPosition();
++		if(src->Read(sniff, sizeof(sniff)) == (tjs_uint)sizeof(sniff)) {
++			src->SetPosition(pos);
++			if(!memcmp(sniff, "RIFF", 4) && !memcmp(sniff + 8, "WEBPVP8", 7)) {
++				TVPLoadHeaderWEBP(formatdata, src, dic);
++				return;
++			}
++		} else src->SetPosition(pos);
++	}
+ 	png_structp png_ptr=NULL;
+ 	png_infop info_ptr=NULL;
+ 	png_infop end_info=NULL;
+diff --git a/visual/LoadTLG.cpp b/visual/LoadTLG.cpp
+index f3d3b953..353937da 100644
+--- a/visual/LoadTLG.cpp
++++ b/visual/LoadTLG.cpp
+@@ -473,6 +473,32 @@ void TVPLoadTLG(void* formatdata, void *callbackdata, tTVPGraphicSizeCallback si
+ 	tTVPGraphicScanLineCallback scanlinecallback, tTVPMetaInfoPushCallback metainfopushcallback,
+ 	tTJSBinaryStream *src, tjs_int keyidx,  tTVPGraphicLoadMode mode)
+ {
++	// Some games store PNG/JPEG data inside PSB resources but request them
++	// through a ".tlg" virtual path. Sniff the real header before selecting
++	// the TLG decoder.
++	unsigned char sniff[16];
++	src->ReadBuffer(sniff, 16);
++	src->Seek(0, TJS_BS_SEEK_SET);
++	if(!memcmp(sniff, "RIFF", 4) && !memcmp(sniff + 8, "WEBPVP8", 7))
++	{
++		TVPLoadWEBP(formatdata, callbackdata, sizecallback, scanlinecallback,
++			metainfopushcallback, src, keyidx, mode);
++		return;
++	}
++	static const unsigned char pngsig[8] = {0x89, 'P', 'N', 'G', 0x0d, 0x0a, 0x1a, 0x0a};
++	if(!memcmp(sniff, pngsig, 8))
++	{
++		TVPLoadPNG(formatdata, callbackdata, sizecallback, scanlinecallback,
++			metainfopushcallback, src, keyidx, mode);
++		return;
++	}
++	if(sniff[0] == 0xff && sniff[1] == 0xd8 && sniff[2] == 0xff)
++	{
++		TVPLoadJPEG(formatdata, callbackdata, sizecallback, scanlinecallback,
++			metainfopushcallback, src, keyidx, mode);
++		return;
++	}
++
+ 	// read header
+ 	unsigned char mark[12];
+ 	src->ReadBuffer(mark, 11);
+@@ -589,6 +615,18 @@ void TVPLoadHeaderTLG(void* formatdata, tTJSBinaryStream *src, iTJSDispatch2** d
+ {
+ 	if( dic == NULL ) return;
+ 
++	{
++		unsigned char sniff[16];
++		const tjs_uint64 pos = src->GetPosition();
++		if(src->Read(sniff, sizeof(sniff)) == (tjs_uint)sizeof(sniff)) {
++			src->SetPosition(pos);
++			if(!memcmp(sniff, "RIFF", 4) && !memcmp(sniff + 8, "WEBPVP8", 7)) {
++				TVPLoadHeaderWEBP(formatdata, src, dic);
++				return;
++			}
++		} else src->SetPosition(pos);
++	}
++
+ 	// read header
+ 	unsigned char mark[12];
+ 	src->ReadBuffer(mark, 11);
+diff --git a/visual/TransIntf.cpp b/visual/TransIntf.cpp
+index 0ad92b9b..b0239d93 100644
+--- a/visual/TransIntf.cpp
++++ b/visual/TransIntf.cpp
+@@ -1192,6 +1192,22 @@ void tTVPScrollDivisibleData::Blend(tTVPScrollTransFrom from,
+ 
+ 
+ 
++//---------------------------------------------------------------------------
++class tTVPWaveAliasTransHandlerProvider : public tTVPCrossFadeTransHandlerProvider
++{
++public:
++	tTVPWaveAliasTransHandlerProvider() : tTVPCrossFadeTransHandlerProvider() {}
++	virtual ~tTVPWaveAliasTransHandlerProvider() { };
++
++	tjs_error TJS_INTF_METHOD GetName(
++			/*out*/const tjs_char ** name)
++	{
++		if(name)
++			{ *name = TJS_W("wave"); return TJS_S_OK; }
++		else
++			{ return TJS_E_FAIL; }
++	}
++};
+ //---------------------------------------------------------------------------
+ static void TVPRegisterDefaultTransHandlerProvider()
+ {
+@@ -1210,6 +1226,15 @@ static void TVPRegisterDefaultTransHandlerProvider()
+ 	prov = new tTVPScrollTransHandlerProvider();
+ 	TVPAddTransHandlerProvider(prov);
+ 	prov->Release();
++
++	// "wave" normally comes from the Win32-only extrans.dll plug-in
++	// (W.Dee's extended transitions). The web build has no native plug-ins,
++	// so alias it to the built-in cross fade; without this every
++	// [trans method=wave] call (e.g. opening the save/load menu) aborts with
++	// "Cannot find transition handler wave".
++	prov = new tTVPWaveAliasTransHandlerProvider();
++	TVPAddTransHandlerProvider(prov);
++	prov->Release();
+ }
+ //---------------------------------------------------------------------------
+ 

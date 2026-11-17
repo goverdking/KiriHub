@@ -1,0 +1,1063 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 9503505..e2f3573 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -40,6 +40,7 @@ option(KRKRSDL2_EMSCRIPTEN_ENABLE_JS_FALLBACK "Enable JavaScript fallback for th
+ option(KRKRSDL2_EMSCRIPTEN_ENABLE_BIGINT "Enable BigInt support for the Emscripten build." ON)
+ option(KRKRSDL2_EMSCRIPTEN_ENABLE_WASM_SIMD "Enable WebAssembly SIMD for the Emscripten build." OFF)
+ option(KRKRSDL2_EMSCRIPTEN_ENABLE_THREADS "Enable threads for the Emscripten build." OFF)
++option(KRKRSDL2_EMSCRIPTEN_ENABLE_ASYNCIFY "Enable stack suspension for Emscripten imports." ON)
+ option(KRKRSDL2_EMSCRIPTEN_ENABLE_SOURCE_MAPS "Enable threads for the Emscripten build." OFF)
+ set(KRKRSDL2_EMSCRIPTEN_INITIAL_MEMORY "134217728" CACHE STRING "Initial memory usage for the Emscripten build.")
+ option(KRKRSDL2_BUILD_ENABLE_WARNINGS "Enable warnings when building the project." OFF)
+@@ -163,6 +164,7 @@ list(APPEND KRKRSDL2COMMON_SRC src/support/roundevenf.c)
+ 
+ if(${CMAKE_SYSTEM_NAME} STREQUAL "Emscripten")
+ list(APPEND KRKRSDL2COMMON_SRC src/plugins/kremscripten.cpp)
++list(APPEND KRKRSDL2COMMON_SRC src/core/sound/sdl2/FFmpegWaveDecoder.cpp)
+ endif()
+ 
+ list(APPEND KRKRSDL2_DEFINITIONS
+@@ -185,6 +187,7 @@ list(APPEND KRKRSDL2_LDFLAGS
+ 	-sEXIT_RUNTIME=1
+ 	-sALLOW_MEMORY_GROWTH=1
+ 	-sINITIAL_MEMORY=${KRKRSDL2_EMSCRIPTEN_INITIAL_MEMORY}
++	-sSTACK_SIZE=2097152
+ 	-sFORCE_FILESYSTEM=1
+ 	-sASSERTIONS=0
+ 	-sSTACK_OVERFLOW_CHECK=0
+@@ -198,6 +201,14 @@ list(APPEND KRKRSDL2_LDFLAGS
+ 	--no-heap-copy
+ 	-fPIC
+ )
++if(KRKRSDL2_EMSCRIPTEN_ENABLE_ASYNCIFY)
++list(APPEND KRKRSDL2_LDFLAGS
++	-sASYNCIFY=1
++	-sASYNCIFY_STACK_SIZE=1048576
++	"-sASYNCIFY_IMPORTS=['fd_read','fd_pread']"
++	"SHELL:--js-library ${CMAKE_CURRENT_SOURCE_DIR}/src/config/library_lazyread.js"
++)
++endif()
+ list(APPEND KRKRSDL2_CFLAGS
+ 	-sDISABLE_EXCEPTION_CATCHING=0
+ 	-sUSE_SDL=2
+@@ -566,6 +577,81 @@ list(APPEND KRKRSDL2_DEFINITIONS
+ )
+ endif()
+ 
++# Kiri Hub statically linked NCB plugins (PSD / PSBFile)
++if(${CMAKE_SYSTEM_NAME} STREQUAL "Emscripten")
++set(KH_PLUGIN_SRC
++	external/khplugins/ncbind/ncbind.cpp
++	external/khplugins/psbfile/PSBFile.cpp
++	external/khplugins/psbfile/PSBRawFile.cpp
++	external/khplugins/psbfile/PSBMedia.cpp
++	external/khplugins/psbfile/PSBMediaRegistry.cpp
++	external/khplugins/psdfile/main.cpp
++	external/khplugins/psdfile/psdclass.cpp
++	external/khplugins/psdfile/psdclass_loadstream.cpp
++	external/khplugins/psdfile/psdclass_loadstreambase.cpp
++	external/khplugins/psdfile/psdparse/bmp.cpp
++	external/khplugins/psdfile/psdparse/psddesc.cpp
++	external/khplugins/psdfile/psdparse/psdfile.cpp
++	external/khplugins/psdfile/psdparse/psdimage.cpp
++	external/khplugins/psdfile/psdparse/psdlayer.cpp
++	external/khplugins/psdfile/psdparse/psdparse.cpp
++	external/khplugins/psdfile/psdparse/psdresource.cpp
++	external/khplugins/savestruct/saveStruct.cpp
++	external/khplugins/scriptsex/scriptsEx.cpp
++	external/khplugins/csvparser/csvParser.cpp
++	external/khplugins/addfont/addFont.cpp
++	external/khplugins/kagparser/KAGParser.cpp
++	external/khplugins/textrender/TextRender.cpp
++	external/khplugins/alphamovie/AlphaMovie.cpp
++	external/khplugins/layerexdraw/main.cpp
++	external/khplugins/layerexdraw/LayerExDraw.cpp
++	external/khplugins/layerexdraw/DrawPath.cpp
++	external/krkrz/visual/LoadWEBP.cpp
++	src/plugins/khplugin_init.cpp
++)
++list(APPEND KRKRSDL2COMMON_INCLUDES
++	external/khplugins/ncbind
++	external/khplugins/layerexdraw
++	external/khplugins/psbfile
++	external/khplugins/psdfile
++	external/khplugins/psdfile/psdparse
++)
++list(APPEND KRKRSDL2_DEFINITIONS
++	BOOST_ALL_NO_LIB
++)
++list(APPEND KRKRSDL2_LIBS "${KIRIHUB_DEPS_ROOT}/lib/libwebp.a")
++# FFmpeg (from the KrKiKiri2 wasm vcpkg tree) for the AAC/M4A wave decoder.
++# Link order matters: avformat -> avcodec -> swresample -> avutil.
++list(APPEND KRKRSDL2_LIBS
++	"${KIRIHUB_DEPS_ROOT}/lib/libavformat.a"
++	"${KIRIHUB_DEPS_ROOT}/lib/libavcodec.a"
++	"${KIRIHUB_DEPS_ROOT}/lib/libswresample.a"
++	"${KIRIHUB_DEPS_ROOT}/lib/libavutil.a"
++	"${KIRIHUB_DEPS_ROOT}/lib/liblzma.a"
++	"${KIRIHUB_DEPS_ROOT}/lib/libbz2.a"
++	"${KIRIHUB_DEPS_ROOT}/lib/libz.a"
++)
++set(KH_VCPKG_ROOT "${KIRIHUB_DEPS_ROOT}")
++find_package(libgdiplus CONFIG REQUIRED PATHS "${KH_VCPKG_ROOT}/share/libgdiplus" NO_DEFAULT_PATH NO_CMAKE_FIND_ROOT_PATH)
++list(APPEND KRKRSDL2_LIBS libgdiplus::libgdiplus "${KH_VCPKG_ROOT}/lib/libswscale.a")
++# GDI/fontconfig use FreeType 2.13. Link one implementation and compile the
++# engine against its matching public headers, rather than mixing 2.6 and 2.13.
++list(FILTER KRKRSDL2COMMON_SRC EXCLUDE REGEX "external/freetype/")
++list(FILTER KRKRSDL2COMMON_INCLUDES EXCLUDE REGEX "external/freetype/(include|src)")
++list(REMOVE_ITEM KRKRSDL2_DEFINITIONS FT2_BUILD_LIBRARY)
++# The installed cairo/GDI+ libraries use Wasm exceptions for setjmp/longjmp.
++# Keep the engine and dependencies on one exception ABI, still without pthreads.
++foreach(KH_FLAGS KRKRSDL2_CFLAGS KRKRSDL2_CXXFLAGS KRKRSDL2_LDFLAGS)
++    list(REMOVE_ITEM ${KH_FLAGS} -sDISABLE_EXCEPTION_CATCHING=0)
++    list(APPEND ${KH_FLAGS} -fwasm-exceptions)
++endforeach()
++list(APPEND KRKRSDL2_LDFLAGS -sSUPPORT_LONGJMP=wasm)
++include_directories(SYSTEM "${KH_VCPKG_ROOT}/lib/glib-2.0/include" "${KH_VCPKG_ROOT}/include/glib-2.0")
++# Boost headers are used by psdparse's Spirit grammars (header-only).
++include_directories(SYSTEM "${KIRIHUB_DEPS_ROOT}/include")
++set_source_files_properties(${KH_PLUGIN_SRC} PROPERTIES SKIP_PRECOMPILE_HEADERS ON)
++endif()
++
+ if(VITA)
+ list(APPEND KRKRSDL2_SRC
+ 	${KRKRSDL2COMMON_SRC}
+@@ -581,7 +667,7 @@ if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
+ set_target_properties(${KRKRSDL2COMMON_NAME} PROPERTIES POSITION_INDEPENDENT_CODE TRUE)
+ endif()
+ set_target_properties(${KRKRSDL2COMMON_NAME} PROPERTIES C_STANDARD 11)
+-set_target_properties(${KRKRSDL2COMMON_NAME} PROPERTIES CXX_STANDARD 14)
++set_target_properties(${KRKRSDL2COMMON_NAME} PROPERTIES CXX_STANDARD 17)
+ target_sources(${KRKRSDL2COMMON_NAME} PRIVATE ${KRKRSDL2COMMON_SRC})
+ target_compile_definitions(${KRKRSDL2COMMON_NAME} PUBLIC ${KRKRSDL2_DEFINITIONS})
+ target_compile_options(${KRKRSDL2COMMON_NAME} PUBLIC $<$<COMPILE_LANGUAGE:C>:${KRKRSDL2_CFLAGS}>)
+@@ -600,6 +686,24 @@ endif()
+ list(APPEND KRKRSDL2_LIBS
+ 	${KRKRSDL2COMMON_NAME}
+ )
++
++if(${CMAKE_SYSTEM_NAME} STREQUAL "Emscripten")
++add_library(khplugins STATIC ${KH_PLUGIN_SRC})
++set_target_properties(khplugins PROPERTIES CXX_STANDARD 17)
++target_compile_definitions(khplugins PUBLIC ${KRKRSDL2_DEFINITIONS})
++target_compile_options(khplugins PUBLIC $<$<COMPILE_LANGUAGE:CXX>:${KRKRSDL2_CXXFLAGS}>)
++target_include_directories(khplugins PUBLIC ${KRKRSDL2COMMON_INCLUDES})
++# Emit `-Wl,--whole-archive libkrkrsdl2common.a` so translation units with no
++# referenced symbols (src/plugins/kremscripten.cpp, whose only exports are
++# embind static registrars) are actually linked in. Without this the JS
++# `Module.evalTJS` / `internal_TJS2JS_*` binding surface is silently missing.
++list(INSERT KRKRSDL2_LIBS 0
++	"-Wl,--whole-archive"
++	khplugins
++	${KRKRSDL2COMMON_NAME}
++	"-Wl,--no-whole-archive"
++)
++endif()
+ endif()
+ 
+ list(APPEND KRKRSDL2_SRC
+@@ -627,7 +731,7 @@ if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
+ set_target_properties(${KRKRSDL2_NAME} PROPERTIES POSITION_INDEPENDENT_CODE TRUE)
+ endif()
+ set_target_properties(${KRKRSDL2_NAME} PROPERTIES C_STANDARD 11)
+-set_target_properties(${KRKRSDL2_NAME} PROPERTIES CXX_STANDARD 14)
++set_target_properties(${KRKRSDL2_NAME} PROPERTIES CXX_STANDARD 17)
+ target_sources(${KRKRSDL2_NAME} PRIVATE ${KRKRSDL2_SRC})
+ target_compile_definitions(${KRKRSDL2_NAME} PUBLIC ${KRKRSDL2_DEFINITIONS})
+ target_compile_options(${KRKRSDL2_NAME} PUBLIC $<$<COMPILE_LANGUAGE:C>:${KRKRSDL2_CFLAGS}>)
+@@ -635,6 +739,10 @@ target_compile_options(${KRKRSDL2_NAME} PUBLIC $<$<COMPILE_LANGUAGE:CXX>:${KRKRS
+ target_include_directories(${KRKRSDL2_NAME} PUBLIC ${KRKRSDL2_INCLUDES})
+ if(${CMAKE_VERSION} VERSION_GREATER_EQUAL "3.13.0")
+ target_link_options(${KRKRSDL2_NAME} PUBLIC ${KRKRSDL2_LDFLAGS})
++if(EMSCRIPTEN AND KRKRSDL2_EMSCRIPTEN_ENABLE_ASYNCIFY)
++set_property(TARGET ${KRKRSDL2_NAME} APPEND PROPERTY LINK_DEPENDS
++    "${CMAKE_CURRENT_SOURCE_DIR}/src/config/library_lazyread.js")
++endif()
+ endif()
+ target_link_libraries(${KRKRSDL2_NAME} ${KRKRSDL2_LIBS})
+ if(${CMAKE_VERSION} VERSION_GREATER_EQUAL "3.16.0")
+@@ -758,6 +866,21 @@ configure_file(
+ 	@ONLY
+ 	NEWLINE_STYLE UNIX
+ )
++configure_file(
++	src/config/lazyfs.js
++	${CMAKE_CURRENT_BINARY_DIR}/lazyfs.js
++	COPYONLY
++)
++configure_file(
++	src/config/web-profile.js
++	${CMAKE_CURRENT_BINARY_DIR}/web-profile.js
++	COPYONLY
++)
++configure_file(
++	src/config/web-video.js
++	${CMAKE_CURRENT_BINARY_DIR}/web-video.js
++	COPYONLY
++)
+ endif()
+ 
+ get_directory_property(HAS_PARENT_SCOPE PARENT_DIRECTORY)
+diff --git a/src/config/index.html.in b/src/config/index.html.in
+index aca6c16..09821a9 100644
+--- a/src/config/index.html.in
++++ b/src/config/index.html.in
+@@ -92,6 +92,26 @@
+     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+   </head>
+   <body>
++    <script>
++      // Notify the same-origin library shell when the compatibility startup ends.
++      // Emscripten binds console.log before the iframe load event, so install early.
++      (function () {
++        if (window.parent === window) return;
++        var original = console.log;
++        var ready = false;
++        console.log = function () {
++          original.apply(console, arguments);
++          if (!ready && Array.prototype.some.call(arguments, function (value) {
++            return String(value) === 'WEB_COMPAT_STARTUP_COMPLETE';
++          })) {
++            ready = true;
++            window.parent.postMessage({ type: 'webgal:engine-ready' }, location.origin);
++          }
++        };
++      })();
++    </script>
++    <script src="web-profile.js"></script>
++    <script src="web-video.js"></script>
+     <a href="https://krkrsdl2.github.io/krkrsdl2/" style="display: inline-block; vertical-align: middle;">
+       <svg
+        xmlns:dc="http://purl.org/dc/elements/1.1/"
+@@ -403,7 +423,7 @@
+       var spinnerElement = document.getElementById('spinner');
+ 
+       var Module = {
+-        arguments: ['/data.xp3'],
++        arguments: ['/data.xp3', '-debugwin=no'],
+         preRun: [],
+         postRun: [],
+         print: (function() {
+@@ -449,7 +469,7 @@
+             statusElement.innerHTML = '';
+             document.getElementById('statusbar').hidden = true;
+           } else {
+-            statusElement.innerHTML = text + '<br />';
++            statusElement.textContent = text;
+             document.getElementById('statusbar').hidden = false;
+           }
+         },
+@@ -469,20 +489,42 @@
+         };
+       };
+     </script>
++    <script src="lazyfs.js"></script>
+     <script>
+       // Work-around iframe focus
+       // https://github.com/emscripten-core/emscripten/pull/7631
+       document.getElementById('canvas').addEventListener('mouseenter', function(e) { window.focus() });
+       document.getElementById('canvas').addEventListener('click', function(e) { window.focus() });
+ 
+-      function onLoadMainJs() {
+-        instantiate_krkrsdl2_module(Module);
++      var gameProfile;
++
++      function bootError(error) {
++        Module.printErr(error.stack || String(error));
++        Module.setStatus('加载失败：' + (error.message || String(error)));
++      }
++
++      async function onLoadMainJs() {
++        try {
++          var game = new URLSearchParams(location.search).get('game');
++          if (game) {
++            gameProfile = await KrkrWebProfile.load(game);
++            Module.webVideo = createKrkrWebVideo(Module, gameProfile.media);
++            Module.arguments.push('-datapath=' + gameProfile.saveDirectory + '/');
++            if (gameProfile.compatibility.length) {
++              Module.arguments.push('-startup=file://./webcompat/startup.tjs');
++            }
++          }
++          await instantiate_krkrsdl2_module(Module);
++        } catch (error) {
++          bootError(error);
++        }
+       }
+ 
+       function loadMainJs() {
+         var script = document.createElement('script');
+         script.src = "@KRKRSDL2_NAME@.js";
+         script.onload = onLoadMainJs;
++        script.onerror = function () { bootError(new Error('无法加载引擎脚本')); };
+         document.body.appendChild(script);
+       }
+ 
+@@ -571,16 +613,55 @@
+         Module['FS'].mkdir('/libsdl');
+         Module['FS'].mkdir('/libsdl/krkrsdl2');
+ 
+-        // Download data.xp3
+-        xhrDownloadFile('data.xp3', '/data.xp3');
++        // Lazy XP3 archives (HTTP Range) or eager files.
++        var lazyXp3 = new URLSearchParams(location.search).get('lazyxp3');
++        if (gameProfile) {
++            Module['addRunDependency']('game-profile');
++            KrkrWebProfile.mount(Module, gameProfile).then(function () {
++                Module['removeRunDependency']('game-profile');
++            }, bootError);
++        } else if (lazyXp3) {
++            var defaultXp3 = ['data.xp3','patch.xp3','data1080.xp3','bgimage1080.xp3','evimage1080.xp3','fgimage1080.xp3','patch_data1080.xp3','bgm.xp3','voice.xp3'];
++            var xp3List = lazyXp3 === '1' ? defaultXp3 : lazyXp3.split(',').filter(Boolean);
++            var xp3Map = {};
++            xp3List.forEach(function (f) { xp3Map['/' + f] = '/games/orig/' + f; });
++            xp3Map['/patch.tjs'] = '/games/orig/patch.tjs';
++            Module['addRunDependency']('lazy-xp3');
++            LazyFS.installFiles(Module, xp3Map).then(function () {
++                Module['removeRunDependency']('lazy-xp3');
++            }).catch(function (err) {
++                Module.printErr('LazyXP3 failed: ' + (err && err.stack || err));
++                Module['removeRunDependency']('lazy-xp3');
++            });
++        } else if (eagerFiles) {
++            eagerFiles.split(',').forEach(function (f) {
++                xhrDownloadFile('/games/orig/' + f, '/' + f);
++            });
++        } else if (new URLSearchParams(location.search).get('eager') === '1') {
++            xhrDownloadFile('data.xp3', '/data.xp3');
++        } else {
++            var zipUrl = new URLSearchParams(location.search).get('zip') || 'data.zip';
++            Module['addRunDependency']('lazy-data');
++            LazyFS.install(Module, zipUrl).then(function () {
++                Module['removeRunDependency']('lazy-data');
++            }).catch(function (err) {
++                Module.printErr('LazyFS failed: ' + (err && err.stack || err));
++                Module['removeRunDependency']('lazy-data');
++            });
++        }
+ 
+         // Initialize IDBFS for save data
+         Module['FS'].mount(Module['IDBFS'], {}, '/libsdl/krkrsdl2');
+ 
++        Module['addRunDependency']('savedata');
+         Module['FS'].syncfs(true, function (err) {
++          if (err) {
++            bootError(err);
++            return;
++          }
++          KrkrWebProfile.prepareSaves(Module, gameProfile);
+           Module['removeRunDependency']('savedata');
+         });
+-        Module['addRunDependency']('savedata');
+       }
+       Module['preRun'].push(runWithFS);
+ 
+diff --git a/src/core/base/sdl2/PluginImpl.cpp b/src/core/base/sdl2/PluginImpl.cpp
+index 836c0f4..f97ac92 100644
+--- a/src/core/base/sdl2/PluginImpl.cpp
++++ b/src/core/base/sdl2/PluginImpl.cpp
+@@ -14,6 +14,7 @@
+ #include <functional>
+ #include "ScriptMgnIntf.h"
+ #include "PluginImpl.h"
++#include "khplugin_init.h"
+ #include "StorageImpl.h"
+ #include "GraphicsLoaderImpl.h"
+ 
+@@ -1143,6 +1144,8 @@ TJS_BEGIN_NATIVE_METHOD_DECL(/*func. name*/link)
+ 
+ 	ttstr name = *param[0];
+ 
++	if(TVPTryLoadInternalPlugin(name)) return TJS_S_OK;
++
+ 	TVPLoadPlugin(name);
+ 
+ 	return TJS_S_OK;
+diff --git a/src/core/environ/sdl2/Application.cpp b/src/core/environ/sdl2/Application.cpp
+index 73d3aee..6949818 100644
+--- a/src/core/environ/sdl2/Application.cpp
++++ b/src/core/environ/sdl2/Application.cpp
+@@ -129,6 +129,10 @@ static MemoryLeaksDebugBreakPoint gMemoryLeaksDebugBreakPoint;
+ #endif
+ tjs_string ExePath() {
+ 	static tjs_string exepath(TJS_W(""));
++#ifdef __EMSCRIPTEN__
++	// The web shell mounts game files alongside this virtual executable path.
++	return TJS_W("/krkrsdl2");
++#endif
+ #if defined(_WIN32)
+ 	if (exepath.empty())
+ 	{
+@@ -773,6 +777,10 @@ void tTVPApplication::Run() {
+ 	{
+ 		return;
+ 	}
++#ifdef __EMSCRIPTEN__
++	extern void TVPPumpWebVideoEvents();
++	TVPPumpWebVideoEvents();
++#endif
+ 	bool done = TVPSystemControl && TVPSystemControl->ApplicationIdle();
+ 	tjs_int count = TVPGetWindowCount();
+ 	for( tjs_int i = 0; i<count; i++ ) {
+diff --git a/src/core/sdl2/SDLApplication.cpp b/src/core/sdl2/SDLApplication.cpp
+index 5c16a31..922b719 100644
+--- a/src/core/sdl2/SDLApplication.cpp
++++ b/src/core/sdl2/SDLApplication.cpp
+@@ -73,10 +73,6 @@ static void process_events();
+ static bool process_events();
+ #endif
+ 
+-#if defined(__EMSCRIPTEN__) && !defined(__EMSCRIPTEN_PTHREADS__)
+-static int sdl_event_watch(void *userdata, SDL_Event *in_event);
+-#endif
+-
+ static void refresh_controllers()
+ {
+ #if defined(__IPHONEOS__) || defined(__ANDROID__)
+@@ -828,12 +824,6 @@ TVPWindowWindow::TVPWindowWindow(tTJSNI_Window *w)
+ 		}
+ #endif
+ 
+-#if defined(__EMSCRIPTEN__) && !defined(__EMSCRIPTEN_PTHREADS__)
+-		// move the event watch to after the SDL_RendererEventWatch to ensure transformed values are received
+-		SDL_DelEventWatch(sdl_event_watch, nullptr);
+-		SDL_AddEventWatch(sdl_event_watch, nullptr);
+-#endif
+-
+ 		this->bitmapCompletion = new TVPSDLBitmapCompletion();
+ 		if (!this->renderer)
+ 		{
+@@ -2610,9 +2600,10 @@ void TVPWindowWindow::window_receive_event(SDL_Event event)
+ 				}
+ 				default:
+ 				{
+-#if !(defined(__EMSCRIPTEN__) && !defined(__EMSCRIPTEN_PTHREADS__))
++					// Browser events are queued until the main loop can process them.
++					// Running scripts inside SDL's event watch can reenter a suspended
++					// Asyncify stack while a resource request is still pending.
+ 					this->window_receive_event_input(event);
+-#endif
+ 					return;
+ 				}
+ 			}
+@@ -2890,28 +2881,6 @@ static void sdl_windows_message_hook(void *userdata, void *hWnd, unsigned int me
+ }
+ #endif
+ 
+-#if defined(__EMSCRIPTEN__) && !defined(__EMSCRIPTEN_PTHREADS__)
+-static int sdl_event_watch(void *userdata, SDL_Event *in_event)
+-{
+-	SDL_Event event;
+-	SDL_memcpy(&event, in_event, sizeof(SDL_Event));
+-#if defined(_WIN32) && defined(KRKRSDL2_USE_WIN32_EVENT_QUEUE)
+-#else
+-	if (event.type == NativeEventQueueImplement::native_event_queue_custom_event_type)
+-	{
+-		return 1;
+-	}
+-#endif
+-	if (_currentWindowWindow && _currentWindowWindow->window_receive_event_input(event) && TVPSystemControl)
+-	{
+-		// process events now
+-		// Some JS functions will only work in e.g. mouse down callback due to browser restrictions
+-		TVPSystemControl->ApplicationIdle();
+-	}
+-	return 1;
+-}
+-#endif
+-
+ #if defined(__EMSCRIPTEN__) && !defined(__EMSCRIPTEN_PTHREADS__)
+ static void process_events()
+ #else
+@@ -3034,9 +3003,6 @@ bool krkrsdl2_init_platform(void)
+ 
+ #ifdef _WIN32
+ 	SDL_SetWindowsMessageHook(sdl_windows_message_hook, nullptr);
+-#endif
+-#if defined(__EMSCRIPTEN__) && !defined(__EMSCRIPTEN_PTHREADS__)
+-	SDL_AddEventWatch(sdl_event_watch, nullptr);
+ #endif
+ 	::Application = new tTVPApplication();
+ 	return !!::Application->StartApplication(_argc, _wargv);
+diff --git a/src/core/sound/sdl2/OpenALWaveMixer.cpp b/src/core/sound/sdl2/OpenALWaveMixer.cpp
+index c59e716..09579ac 100644
+--- a/src/core/sound/sdl2/OpenALWaveMixer.cpp
++++ b/src/core/sound/sdl2/OpenALWaveMixer.cpp
+@@ -129,8 +129,10 @@ public:
+ 
+ 	virtual ~tTVPSoundBuffer()
+ 	{
+-		alDeleteBuffers(_bufferCount, _bufferIds);
++		// OpenAL buffers cannot be deleted while they are attached to a source.
++		alSourceStop(_alSource);
+ 		alDeleteSources(1, &_alSource);
++		alDeleteBuffers(_bufferCount, _bufferIds);
+ 		delete[] _bufferIds;
+ 		delete[] _bufferIds2;
+ 		delete[] _bufferSize;
+@@ -196,6 +198,7 @@ public:
+ 		ALuint bufid = _bufferIds[_bufferIdx];
+ 		alBufferData(bufid, _alFormat, buf, len, _format.SamplesPerSec);
+ 		CheckALError("alBufferData");
++		_bufferSize[_bufferIdx] = len;
+ 		alSourceQueueBuffers(_alSource, 1, &bufid);
+ 		CheckALError("alSourceQueueBuffers");
+ 		EnsurePlayState();
+@@ -204,7 +207,7 @@ public:
+ 	void EnsurePlayState()
+ 	{
+ 		tTJSCriticalSectionHolder holder(_buffer_mtx);
+-		ALenum state;
++		ALenum state = AL_INITIAL;
+ 		alGetSourcei(_alSource, AL_SOURCE_STATE, &state);
+ 		CheckALError("alGetSourcei AL_SOURCE_STATE");
+ 		if (_playing)
+diff --git a/src/core/visual/sdl2/VideoOvlImpl.cpp b/src/core/visual/sdl2/VideoOvlImpl.cpp
+index a66bff1..1592d3e 100644
+--- a/src/core/visual/sdl2/VideoOvlImpl.cpp
++++ b/src/core/visual/sdl2/VideoOvlImpl.cpp
+@@ -30,6 +30,34 @@
+ #endif
+ 
+ #include "Application.h"
++#ifdef __EMSCRIPTEN__
++#include <emscripten.h>
++
++EM_JS(int, TVPWebVideoOpen, (uintptr_t key, const char *name), {
++	return Module.webVideo ? Module.webVideo.open(key, UTF8ToString(name)) : 0;
++});
++
++EM_JS(double, TVPWebVideoCommand, (uintptr_t key, int action, double value), {
++	return Module.webVideo ? Module.webVideo.command(key, action, value) : 0;
++});
++
++EM_JS(void, TVPWebVideoBounds, (uintptr_t key, int left, int top, int width, int height), {
++	if (Module.webVideo) Module.webVideo.bounds(key, left, top, width, height);
++});
++EM_JS(int, TVPWebVideoCopyFrame, (uintptr_t key, uintptr_t dest, int pitch, int width, int height), {
++	var frame = Module.webVideo && Module.webVideo.getFrame(key);
++	if(!frame || frame.width !== width || frame.height !== height) return 0;
++	var pixels = new Uint32Array(frame.data.buffer, frame.data.byteOffset, width * height);
++	for(var y = 0; y < height; ++y) {
++		var row = (dest + y * pitch) >>> 2;
++		for(var x = 0; x < width; ++x) {
++			var rgba = pixels[y * width + x];
++			HEAPU32[row + x] = (rgba & 0xff00ff00) | ((rgba & 255) << 16) | ((rgba >>> 16) & 255);
++		}
++	}
++	return 1;
++});
++#endif
+ #if defined(_WIN32) && defined(KRKRSDL2_USE_WIN32_EVENT_QUEUE) && defined(KRKRSDL2_ENABLE_VIDEOOVERLAY)
+ #include "TVPVideoOverlay.h"
+ #else
+@@ -39,6 +67,89 @@
+ 
+ //---------------------------------------------------------------------------
+ static std::vector<tTJSNI_VideoOverlay *> TVPVideoOverlayVector;
++#ifdef __EMSCRIPTEN__
++extern "C" EMSCRIPTEN_KEEPALIVE void TVPWebVideoEvent(uintptr_t key, int status)
++{
++	auto overlay = reinterpret_cast<tTJSNI_VideoOverlay *>(key);
++	if(std::find(TVPVideoOverlayVector.begin(), TVPVideoOverlayVector.end(), overlay) != TVPVideoOverlayVector.end())
++		overlay->OnWebVideoStatus(status);
++}
++
++void tTJSNI_VideoOverlay::OnWebVideoStatus(int status)
++{
++	switch(status)
++	{
++	case 0: SetStatusAsync(tTVPVideoOverlayStatus::Stop); break;
++	case 1: SetStatusAsync(tTVPVideoOverlayStatus::Ready); break;
++	case 2: SetStatusAsync(tTVPVideoOverlayStatus::Play); break;
++	case 5: SetStatusAsync(tTVPVideoOverlayStatus::LoadError); break;
++	case 6: SetStatusAsync(tTVPVideoOverlayStatus::PlayerError); break;
++	case 7: SetStatusAsync(tTVPVideoOverlayStatus::Pause); break;
++	}
++}
++
++void tTJSNI_VideoOverlay::PostWebEvent(const tjs_char *name, tjs_int value)
++{
++	if(Owner && CanDeliverEvents) {
++		tTJSVariant argument(value);
++		ttstr eventname(name);
++		TVPPostEvent(Owner, Owner, eventname, 0, TVP_EPT_POST, 1, &argument);
++	}
++}
++
++void tTJSNI_VideoOverlay::PumpWebVideoEvents()
++{
++	const uintptr_t key = reinterpret_cast<uintptr_t>(this);
++	for(int count = 0; count < 16; ++count) {
++		const int event = static_cast<int>(TVPWebVideoCommand(key, 19, 0)) - 1;
++		if(event < 0) break;
++		if(event <= 2 || event >= 5) OnWebVideoStatus(event);
++		else if(event == 3 && IsPrepare) {
++			IsPrepare = false;
++			SetStatusAsync(tTVPVideoOverlayStatus::Pause);
++			PostWebEvent(TJS_W("onPeriod"), perPrepare);
++		} else if(event == 4) PostWebEvent(TJS_W("onPeriod"), perLoop);
++	}
++	const int frame = static_cast<int>(TVPWebVideoCommand(key, 18, 0)) - 1;
++	if(frame < 0 || frame == WebLastFrame) return;
++	WebLastFrame = frame;
++	if(Mode == vomLayer) {
++		const int width = GetOriginalWidth(), height = GetOriginalHeight();
++		if(width > 0 && height > 0) {
++			for(auto layer : {Layer1, Layer2}) {
++				if(!layer) continue;
++				if(layer->GetImageWidth() != width || layer->GetImageHeight() != height) layer->SetImageSize(width, height);
++				if(layer->GetWidth() != width || layer->GetHeight() != height) layer->SetSize(width, height);
++				auto bitmap = layer->GetMainImage();
++				void *dest = bitmap->GetScanLineForWrite(0);
++				if(TVPWebVideoCopyFrame(key, reinterpret_cast<uintptr_t>(dest), bitmap->GetPitchBytes(), width, height)) layer->Update();
++			}
++		}
++	}
++	PostWebEvent(TJS_W("onFrameUpdate"), frame);
++	if(Status != tTVPVideoOverlayStatus::Play) return;
++	if(WebStopFrame >= 0 && frame >= WebStopFrame) {
++		TVPWebVideoCommand(key, 2, 0);
++		SetStatusAsync(tTVPVideoOverlayStatus::Stop);
++		return;
++	}
++	if(SegLoopEndFrame > 0 && frame >= SegLoopEndFrame) {
++		SetFrame(std::max(0, SegLoopStartFrame));
++		PostWebEvent(TJS_W("onPeriod"), perSegLoop);
++		return;
++	}
++	if(EventFrame >= 0 && !IsEventPast && frame >= EventFrame) {
++		EventFrame = -1;
++		PostWebEvent(TJS_W("onPeriod"), perPeriod);
++	}
++}
++
++// Called only from the normal engine loop; browser callbacks queue data in JS.
++void TVPPumpWebVideoEvents()
++{
++	for(auto overlay : TVPVideoOverlayVector) overlay->PumpWebVideoEvents();
++}
++#endif
+ //---------------------------------------------------------------------------
+ static void TVPAddVideOverlay(tTJSNI_VideoOverlay *ovl)
+ {
+@@ -99,6 +210,9 @@ tTJSNI_VideoOverlay::tTJSNI_VideoOverlay()
+ 	SegLoopEndFrame = -1;
+ 	IsEventPast = false;
+ 	EventFrame = -1;
++#ifdef __EMSCRIPTEN__
++	TVPAddVideOverlay(this);
++#endif
+ 
+ #if defined(_WIN32) && defined(KRKRSDL2_USE_WIN32_EVENT_QUEUE) && defined(KRKRSDL2_ENABLE_VIDEOOVERLAY)
+ 	Bitmap[0] = Bitmap[1] = NULL;
+@@ -118,6 +232,9 @@ tTJSNI_VideoOverlay::Construct(tjs_int numparams, tTJSVariant **param,
+ //---------------------------------------------------------------------------
+ void TJS_INTF_METHOD tTJSNI_VideoOverlay::Invalidate()
+ {
++#ifdef __EMSCRIPTEN__
++	TVPRemoveVideoOverlay(this);
++#endif
+ 	inherited::Invalidate();
+ 
+ 	Close();
+@@ -127,6 +244,21 @@ void TJS_INTF_METHOD tTJSNI_VideoOverlay::Invalidate()
+ //---------------------------------------------------------------------------
+ void tTJSNI_VideoOverlay::Open(const ttstr &_name)
+ {
++#ifdef __EMSCRIPTEN__
++	Close();
++	std::string name;
++	TVPUtf16ToUtf8(name, _name.AsStdString());
++	if(!TVPWebVideoOpen(reinterpret_cast<uintptr_t>(this), name.c_str()))
++		TVPThrowExceptionMessage(TJS_W("No browser media mapping for %1"), _name);
++	TVPWebVideoCommand(reinterpret_cast<uintptr_t>(this), 6, Loop);
++	TVPWebVideoCommand(reinterpret_cast<uintptr_t>(this), 21, Mode == vomLayer);
++	WebLastFrame = -1;
++	WebStopFrame = -1;
++	IsPrepare = false;
++	SetRectangleToVideoOverlay();
++	SetVisible(Visible);
++	SetStatus(tTVPVideoOverlayStatus::Stop);
++#endif
+ #if defined(_WIN32) && defined(KRKRSDL2_USE_WIN32_EVENT_QUEUE) && defined(KRKRSDL2_ENABLE_VIDEOOVERLAY)
+ 	// open
+ 
+@@ -234,6 +366,10 @@ void tTJSNI_VideoOverlay::Open(const ttstr &_name)
+ //---------------------------------------------------------------------------
+ void tTJSNI_VideoOverlay::Close()
+ {
++#ifdef __EMSCRIPTEN__
++	TVPWebVideoCommand(reinterpret_cast<uintptr_t>(this), 0, 0);
++	SetStatus(tTVPVideoOverlayStatus::Unload);
++#endif
+ #if defined(_WIN32) && defined(KRKRSDL2_USE_WIN32_EVENT_QUEUE) && defined(KRKRSDL2_ENABLE_VIDEOOVERLAY)
+ 	// close
+ 	// release VideoOverlay object
+@@ -259,6 +395,9 @@ void tTJSNI_VideoOverlay::Close()
+ //---------------------------------------------------------------------------
+ void tTJSNI_VideoOverlay::Shutdown()
+ {
++#ifdef __EMSCRIPTEN__
++	TVPWebVideoCommand(reinterpret_cast<uintptr_t>(this), 0, 0);
++#endif
+ #if defined(_WIN32) && defined(KRKRSDL2_USE_WIN32_EVENT_QUEUE) && defined(KRKRSDL2_ENABLE_VIDEOOVERLAY)
+ 	// shutdown the system
+ 	// this functions closes the overlay object, but must not fire any events.
+@@ -288,6 +427,10 @@ void tTJSNI_VideoOverlay::Disconnect()
+ //---------------------------------------------------------------------------
+ void tTJSNI_VideoOverlay::Play()
+ {
++#ifdef __EMSCRIPTEN__
++	TVPWebVideoCommand(reinterpret_cast<uintptr_t>(this), 1, 0);
++	SetStatus(tTVPVideoOverlayStatus::Play);
++#endif
+ #if defined(_WIN32) && defined(KRKRSDL2_USE_WIN32_EVENT_QUEUE) && defined(KRKRSDL2_ENABLE_VIDEOOVERLAY)
+ 	// start playing
+ 	if(VideoOverlay)
+@@ -301,6 +444,10 @@ void tTJSNI_VideoOverlay::Play()
+ //---------------------------------------------------------------------------
+ void tTJSNI_VideoOverlay::Stop()
+ {
++#ifdef __EMSCRIPTEN__
++	TVPWebVideoCommand(reinterpret_cast<uintptr_t>(this), 2, 0);
++	SetStatus(tTVPVideoOverlayStatus::Stop);
++#endif
+ #if defined(_WIN32) && defined(KRKRSDL2_USE_WIN32_EVENT_QUEUE) && defined(KRKRSDL2_ENABLE_VIDEOOVERLAY)
+ 	// stop playing
+ 	if(VideoOverlay)
+@@ -314,6 +461,10 @@ void tTJSNI_VideoOverlay::Stop()
+ //---------------------------------------------------------------------------
+ void tTJSNI_VideoOverlay::Pause()
+ {
++#ifdef __EMSCRIPTEN__
++	TVPWebVideoCommand(reinterpret_cast<uintptr_t>(this), 2, 0);
++	SetStatus(tTVPVideoOverlayStatus::Pause);
++#endif
+ #if defined(_WIN32) && defined(KRKRSDL2_USE_WIN32_EVENT_QUEUE) && defined(KRKRSDL2_ENABLE_VIDEOOVERLAY)
+ 	// pause playing
+ 	if(VideoOverlay)
+@@ -326,6 +477,11 @@ void tTJSNI_VideoOverlay::Pause()
+ }
+ void tTJSNI_VideoOverlay::Rewind()
+ {
++#ifdef __EMSCRIPTEN__
++	TVPWebVideoCommand(reinterpret_cast<uintptr_t>(this), 3, 0);
++	IsEventPast = false;
++	WebLastFrame = -1;
++#endif
+ #if defined(_WIN32) && defined(KRKRSDL2_USE_WIN32_EVENT_QUEUE) && defined(KRKRSDL2_ENABLE_VIDEOOVERLAY)
+ 	// rewind playing
+ 	if(VideoOverlay)
+@@ -340,6 +496,11 @@ void tTJSNI_VideoOverlay::Rewind()
+ }
+ void tTJSNI_VideoOverlay::Prepare()
+ {	// prepare movie
++#ifdef __EMSCRIPTEN__
++	IsPrepare = true;
++	WebLastFrame = -1;
++	TVPWebVideoCommand(reinterpret_cast<uintptr_t>(this), 20, 0);
++#endif
+ #if defined(_WIN32) && defined(KRKRSDL2_USE_WIN32_EVENT_QUEUE) && defined(KRKRSDL2_ENABLE_VIDEOOVERLAY)
+ 	if( VideoOverlay && (Mode == vomLayer) )
+ 	{
+@@ -367,6 +528,9 @@ void tTJSNI_VideoOverlay::SetPeriodEvent( int eventFrame )
+ //---------------------------------------------------------------------------
+ void tTJSNI_VideoOverlay::SetRectangleToVideoOverlay()
+ {
++#ifdef __EMSCRIPTEN__
++	TVPWebVideoBounds(reinterpret_cast<uintptr_t>(this), Rect.left, Rect.top, Rect.get_width(), Rect.get_height());
++#endif
+ #if defined(_WIN32) && defined(KRKRSDL2_USE_WIN32_EVENT_QUEUE) && defined(KRKRSDL2_ENABLE_VIDEOOVERLAY)
+ 	// set Rectangle to video overlay
+ 	if(VideoOverlay && OwnerWindow)
+@@ -465,6 +629,9 @@ void tTJSNI_VideoOverlay::SetHeight(tjs_int h)
+ void tTJSNI_VideoOverlay::SetVisible(bool b)
+ {
+ 	Visible = b;
++#ifdef __EMSCRIPTEN__
++	TVPWebVideoCommand(reinterpret_cast<uintptr_t>(this), 4, Visible);
++#endif
+ #if defined(_WIN32) && defined(KRKRSDL2_USE_WIN32_EVENT_QUEUE) && defined(KRKRSDL2_ENABLE_VIDEOOVERLAY)
+ 	if(VideoOverlay)
+ 	{
+@@ -714,6 +881,9 @@ void tTJSNI_VideoOverlay::WndProc( NativeEvent& ev )
+ //---------------------------------------------------------------------------
+ void tTJSNI_VideoOverlay::SetTimePosition( tjs_uint64 p )
+ {
++#ifdef __EMSCRIPTEN__
++	TVPWebVideoCommand(reinterpret_cast<uintptr_t>(this), 3, static_cast<double>(p) / 1000);
++#endif
+ #if defined(_WIN32) && defined(KRKRSDL2_USE_WIN32_EVENT_QUEUE) && defined(KRKRSDL2_ENABLE_VIDEOOVERLAY)
+ 	if(VideoOverlay)
+ 	{
+@@ -723,6 +893,9 @@ void tTJSNI_VideoOverlay::SetTimePosition( tjs_uint64 p )
+ }
+ tjs_uint64 tTJSNI_VideoOverlay::GetTimePosition()
+ {
++#ifdef __EMSCRIPTEN__
++	return TVPWebVideoCommand(reinterpret_cast<uintptr_t>(this), 10, 0) * 1000;
++#endif
+ 	tjs_uint64	result = 0;
+ #if defined(_WIN32) && defined(KRKRSDL2_USE_WIN32_EVENT_QUEUE) && defined(KRKRSDL2_ENABLE_VIDEOOVERLAY)
+ 	if(VideoOverlay)
+@@ -734,6 +907,11 @@ tjs_uint64 tTJSNI_VideoOverlay::GetTimePosition()
+ }
+ void tTJSNI_VideoOverlay::SetFrame( tjs_int f )
+ {
++#ifdef __EMSCRIPTEN__
++	if(GetFPS() > 0) TVPWebVideoCommand(reinterpret_cast<uintptr_t>(this), 3, f / GetFPS());
++	if(EventFrame >= f && IsEventPast) IsEventPast = false;
++	WebLastFrame = -1;
++#endif
+ #if defined(_WIN32) && defined(KRKRSDL2_USE_WIN32_EVENT_QUEUE) && defined(KRKRSDL2_ENABLE_VIDEOOVERLAY)
+ 	if(VideoOverlay)
+ 	{
+@@ -746,6 +924,9 @@ void tTJSNI_VideoOverlay::SetFrame( tjs_int f )
+ }
+ tjs_int tTJSNI_VideoOverlay::GetFrame()
+ {
++#ifdef __EMSCRIPTEN__
++	return GetTimePosition() * GetFPS() / 1000;
++#endif
+ 	tjs_int	result = 0;
+ #if defined(_WIN32) && defined(KRKRSDL2_USE_WIN32_EVENT_QUEUE) && defined(KRKRSDL2_ENABLE_VIDEOOVERLAY)
+ 	if(VideoOverlay)
+@@ -757,6 +938,9 @@ tjs_int tTJSNI_VideoOverlay::GetFrame()
+ }
+ void tTJSNI_VideoOverlay::SetStopFrame( tjs_int f )
+ {
++#ifdef __EMSCRIPTEN__
++	WebStopFrame = f;
++#endif
+ #if defined(_WIN32) && defined(KRKRSDL2_USE_WIN32_EVENT_QUEUE) && defined(KRKRSDL2_ENABLE_VIDEOOVERLAY)
+ 	if(VideoOverlay)
+ 	{
+@@ -766,6 +950,9 @@ void tTJSNI_VideoOverlay::SetStopFrame( tjs_int f )
+ }
+ void tTJSNI_VideoOverlay::SetDefaultStopFrame()
+ {
++#ifdef __EMSCRIPTEN__
++	WebStopFrame = -1;
++#endif
+ #if defined(_WIN32) && defined(KRKRSDL2_USE_WIN32_EVENT_QUEUE) && defined(KRKRSDL2_ENABLE_VIDEOOVERLAY)
+ 	if(VideoOverlay)
+ 	{
+@@ -775,6 +962,9 @@ void tTJSNI_VideoOverlay::SetDefaultStopFrame()
+ }
+ tjs_int tTJSNI_VideoOverlay::GetStopFrame()
+ {
++#ifdef __EMSCRIPTEN__
++	return WebStopFrame >= 0 ? WebStopFrame : GetNumberOfFrame();
++#endif
+ 	tjs_int	result = 0;
+ #if defined(_WIN32) && defined(KRKRSDL2_USE_WIN32_EVENT_QUEUE) && defined(KRKRSDL2_ENABLE_VIDEOOVERLAY)
+ 	if(VideoOverlay)
+@@ -786,6 +976,9 @@ tjs_int tTJSNI_VideoOverlay::GetStopFrame()
+ }
+ tjs_real tTJSNI_VideoOverlay::GetFPS()
+ {
++#ifdef __EMSCRIPTEN__
++	return TVPWebVideoCommand(reinterpret_cast<uintptr_t>(this), 12, 0);
++#endif
+ 	tjs_real	result = 0.0;
+ #if defined(_WIN32) && defined(KRKRSDL2_USE_WIN32_EVENT_QUEUE) && defined(KRKRSDL2_ENABLE_VIDEOOVERLAY)
+ 	if(VideoOverlay)
+@@ -797,6 +990,9 @@ tjs_real tTJSNI_VideoOverlay::GetFPS()
+ }
+ tjs_int tTJSNI_VideoOverlay::GetNumberOfFrame()
+ {
++#ifdef __EMSCRIPTEN__
++	return GetTotalTime() * GetFPS() / 1000;
++#endif
+ 	tjs_int	result = 0;
+ #if defined(_WIN32) && defined(KRKRSDL2_USE_WIN32_EVENT_QUEUE) && defined(KRKRSDL2_ENABLE_VIDEOOVERLAY)
+ 	if(VideoOverlay)
+@@ -808,6 +1004,9 @@ tjs_int tTJSNI_VideoOverlay::GetNumberOfFrame()
+ }
+ tjs_int64 tTJSNI_VideoOverlay::GetTotalTime()
+ {
++#ifdef __EMSCRIPTEN__
++	return TVPWebVideoCommand(reinterpret_cast<uintptr_t>(this), 11, 0) * 1000;
++#endif
+ 	tjs_int64	result = 0;
+ #if defined(_WIN32) && defined(KRKRSDL2_USE_WIN32_EVENT_QUEUE) && defined(KRKRSDL2_ENABLE_VIDEOOVERLAY)
+ 	if(VideoOverlay)
+@@ -820,6 +1019,9 @@ tjs_int64 tTJSNI_VideoOverlay::GetTotalTime()
+ void tTJSNI_VideoOverlay::SetLoop( bool b )
+ {
+ 	Loop = b;
++#ifdef __EMSCRIPTEN__
++	TVPWebVideoCommand(reinterpret_cast<uintptr_t>(this), 6, b);
++#endif
+ }
+ void tTJSNI_VideoOverlay::SetLayer1( tTJSNI_BaseLayer *l )
+ {
+@@ -831,6 +1033,10 @@ void tTJSNI_VideoOverlay::SetLayer2( tTJSNI_BaseLayer *l )
+ }
+ void tTJSNI_VideoOverlay::SetMode( tTVPVideoOverlayMode m )
+ {
++#ifdef __EMSCRIPTEN__
++	Mode = m;
++	TVPWebVideoCommand(reinterpret_cast<uintptr_t>(this), 21, Mode == vomLayer);
++#endif
+ #if defined(_WIN32) && defined(KRKRSDL2_USE_WIN32_EVENT_QUEUE) && defined(KRKRSDL2_ENABLE_VIDEOOVERLAY)
+ 	// ビデオオープン後のモード変更は禁止
+ 	if( !VideoOverlay )
+@@ -842,6 +1048,9 @@ void tTJSNI_VideoOverlay::SetMode( tTVPVideoOverlayMode m )
+ 
+ tjs_real tTJSNI_VideoOverlay::GetPlayRate()
+ {
++#ifdef __EMSCRIPTEN__
++	return TVPWebVideoCommand(reinterpret_cast<uintptr_t>(this), 14, 0);
++#endif
+ 	tjs_real	result = 0.0;
+ #if defined(_WIN32) && defined(KRKRSDL2_USE_WIN32_EVENT_QUEUE) && defined(KRKRSDL2_ENABLE_VIDEOOVERLAY)
+ 	if(VideoOverlay)
+@@ -853,6 +1062,9 @@ tjs_real tTJSNI_VideoOverlay::GetPlayRate()
+ }
+ void tTJSNI_VideoOverlay::SetPlayRate(tjs_real r)
+ {
++#ifdef __EMSCRIPTEN__
++	if(r > 0) TVPWebVideoCommand(reinterpret_cast<uintptr_t>(this), 7, r);
++#endif
+ #if defined(_WIN32) && defined(KRKRSDL2_USE_WIN32_EVENT_QUEUE) && defined(KRKRSDL2_ENABLE_VIDEOOVERLAY)
+ 	if(VideoOverlay)
+ 	{
+@@ -883,6 +1095,9 @@ void tTJSNI_VideoOverlay::SetAudioBalance(tjs_int b)
+ }
+ tjs_int tTJSNI_VideoOverlay::GetAudioVolume()
+ {
++#ifdef __EMSCRIPTEN__
++	return TVPWebVideoCommand(reinterpret_cast<uintptr_t>(this), 13, 0) * 100000;
++#endif
+ 	long	result = 0;
+ #if defined(_WIN32) && defined(KRKRSDL2_USE_WIN32_EVENT_QUEUE) && defined(KRKRSDL2_ENABLE_VIDEOOVERLAY)
+ 	if(VideoOverlay)
+@@ -894,6 +1109,9 @@ tjs_int tTJSNI_VideoOverlay::GetAudioVolume()
+ }
+ void tTJSNI_VideoOverlay::SetAudioVolume(tjs_int b)
+ {
++#ifdef __EMSCRIPTEN__
++	TVPWebVideoCommand(reinterpret_cast<uintptr_t>(this), 5, b / 100000.0);
++#endif
+ #if defined(_WIN32) && defined(KRKRSDL2_USE_WIN32_EVENT_QUEUE) && defined(KRKRSDL2_ENABLE_VIDEOOVERLAY)
+ 	if(VideoOverlay)
+ 	{
+@@ -903,6 +1121,9 @@ void tTJSNI_VideoOverlay::SetAudioVolume(tjs_int b)
+ }
+ tjs_uint tTJSNI_VideoOverlay::GetNumberOfAudioStream()
+ {
++#ifdef __EMSCRIPTEN__
++	return GetTotalTime() > 0 ? 1 : 0;
++#endif
+ 	unsigned long	result = 0;
+ #if defined(_WIN32) && defined(KRKRSDL2_USE_WIN32_EVENT_QUEUE) && defined(KRKRSDL2_ENABLE_VIDEOOVERLAY)
+ 	if(VideoOverlay)
+@@ -923,6 +1144,9 @@ void tTJSNI_VideoOverlay::SelectAudioStream(tjs_uint n)
+ }
+ tjs_int tTJSNI_VideoOverlay::GetEnabledAudioStream()
+ {
++#ifdef __EMSCRIPTEN__
++	return GetTotalTime() > 0 ? 0 : -1;
++#endif
+ 	long		result = -1;
+ #if defined(_WIN32) && defined(KRKRSDL2_USE_WIN32_EVENT_QUEUE) && defined(KRKRSDL2_ENABLE_VIDEOOVERLAY)
+ 	if(VideoOverlay)
+@@ -934,6 +1158,9 @@ tjs_int tTJSNI_VideoOverlay::GetEnabledAudioStream()
+ }
+ void tTJSNI_VideoOverlay::DisableAudioStream()
+ {
++#ifdef __EMSCRIPTEN__
++	TVPWebVideoCommand(reinterpret_cast<uintptr_t>(this), 15, 1);
++#endif
+ #if defined(_WIN32) && defined(KRKRSDL2_USE_WIN32_EVENT_QUEUE) && defined(KRKRSDL2_ENABLE_VIDEOOVERLAY)
+ 	if(VideoOverlay)
+ 	{
+@@ -1332,6 +1559,9 @@ void tTJSNI_VideoOverlay::SetSaturation( tjs_real v )
+ //---------------------------------------------------------------------------
+ tjs_int tTJSNI_VideoOverlay::GetOriginalWidth()
+ {
++#ifdef __EMSCRIPTEN__
++	return TVPWebVideoCommand(reinterpret_cast<uintptr_t>(this), 16, 0);
++#endif
+ 	// retrieve original (coded in the video stream) width size
+ #if defined(_WIN32) && defined(KRKRSDL2_USE_WIN32_EVENT_QUEUE) && defined(KRKRSDL2_ENABLE_VIDEOOVERLAY)
+ 	if(!VideoOverlay) return 0;
+@@ -1349,6 +1579,9 @@ tjs_int tTJSNI_VideoOverlay::GetOriginalWidth()
+ //---------------------------------------------------------------------------
+ tjs_int tTJSNI_VideoOverlay::GetOriginalHeight()
+ {
++#ifdef __EMSCRIPTEN__
++	return TVPWebVideoCommand(reinterpret_cast<uintptr_t>(this), 17, 0);
++#endif
+ 	// retrieve original (coded in the video stream) height size
+ 
+ 	long	width, height;
+diff --git a/src/core/visual/sdl2/VideoOvlImpl.h b/src/core/visual/sdl2/VideoOvlImpl.h
+index 45f18cf..b4b1a79 100644
+--- a/src/core/visual/sdl2/VideoOvlImpl.h
++++ b/src/core/visual/sdl2/VideoOvlImpl.h
+@@ -62,9 +62,18 @@ class tTJSNI_VideoOverlay : public tTJSNI_BaseVideoOverlay
+ 	//! イベントが設定されているフレームより前に現在フレームが移動した時、このフラグは解除される。
+ 	bool	IsEventPast;
+ 	int		EventFrame;		//!< イベントを発生させるフレーム
++#ifdef __EMSCRIPTEN__
++	int WebStopFrame = -1;
++	int WebLastFrame = -1;
++	void PostWebEvent(const tjs_char *name, tjs_int value);
++#endif
+ 
+ public:
+ 	tTJSNI_VideoOverlay();
++#ifdef __EMSCRIPTEN__
++	void OnWebVideoStatus(int status);
++	void PumpWebVideoEvents();
++#endif
+ 	tjs_error TJS_INTF_METHOD Construct(tjs_int numparams, tTJSVariant **param,
+ 		iTJSDispatch2 *tjs_obj);
+ 	void TJS_INTF_METHOD Invalidate();
+diff --git a/src/plugins/kremscripten.cpp b/src/plugins/kremscripten.cpp
+index bff5f8a..4fa0ecb 100644
+--- a/src/plugins/kremscripten.cpp
++++ b/src/plugins/kremscripten.cpp
+@@ -132,7 +132,8 @@ class iTJSDispatch2WrapperForEmscripten : public tTJSDispatch
+ 			iTJSDispatch2WrapperForEmscripten *objthis_wrap = (iTJSDispatch2WrapperForEmscripten *)objthis;
+ 			vthis = objthis_wrap->get_val();
+ 		}
+-		*result = emscripten_val_to_tjs_variant(js_reflect_apply(func_to_call, vthis, temp_array));
++		const auto value = js_reflect_apply(func_to_call, vthis, temp_array);
++		if (result) *result = emscripten_val_to_tjs_variant(value);
+ 		return TJS_S_OK;
+ 	}
+ 
+@@ -150,7 +151,8 @@ class iTJSDispatch2WrapperForEmscripten : public tTJSDispatch
+ 			iTJSDispatch2WrapperForEmscripten *objthis_wrap = (iTJSDispatch2WrapperForEmscripten *)objthis;
+ 			vthis = objthis_wrap->get_val();
+ 		}
+-		*result = emscripten_val_to_tjs_variant(js_reflect_apply(func_to_call, vthis, temp_array));
++		const auto value = js_reflect_apply(func_to_call, vthis, temp_array);
++		if (result) *result = emscripten_val_to_tjs_variant(value);
+ 		return TJS_S_OK;
+ 	}
+ 
+@@ -166,7 +168,8 @@ class iTJSDispatch2WrapperForEmscripten : public tTJSDispatch
+ 			iTJSDispatch2WrapperForEmscripten *objthis_wrap = (iTJSDispatch2WrapperForEmscripten *)objthis;
+ 			vthis = objthis_wrap->get_val();
+ 		}
+-		*result = emscripten_val_to_tjs_variant(v[tjs_string(membername)], vthis);
++		const emscripten::val value = v[tjs_string(membername)];
++		if (result) *result = emscripten_val_to_tjs_variant(value, vthis);
+ 		return TJS_S_OK;
+ 	}
+ 
+@@ -178,7 +181,8 @@ class iTJSDispatch2WrapperForEmscripten : public tTJSDispatch
+ 			iTJSDispatch2WrapperForEmscripten *objthis_wrap = (iTJSDispatch2WrapperForEmscripten *)objthis;
+ 			vthis = objthis_wrap->get_val();
+ 		}
+-		*result = emscripten_val_to_tjs_variant(v[(tjs_int32)num], vthis);
++		const emscripten::val value = v[(tjs_int32)num];
++		if (result) *result = emscripten_val_to_tjs_variant(value, vthis);
+ 		return TJS_S_OK;
+ 	}
+ 
