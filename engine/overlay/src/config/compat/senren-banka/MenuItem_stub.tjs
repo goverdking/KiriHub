@@ -1,0 +1,33 @@
+
+
+class MenuItem
+{
+	var caption;
+	var checked;
+	var enabled;
+	var group;
+	var radio;
+	var shortcut;
+	var visible;
+	var parent;
+	var children;
+	var root;
+	var window;
+	var index;
+	function MenuItem(window, caption) {
+		children = [];
+		this.window = window;
+		this.caption = caption;
+		this.shortcut = "";
+	}
+	function finalize() {}
+	function add() {}
+	function insert() {}
+	function remove() {}
+	function popup() {}
+	function onClick() {}
+	function fireClick() {}
+}
+
+global.Window.menu = new MenuItem();
+

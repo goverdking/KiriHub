@@ -1,0 +1,92 @@
+// Portable path drawing for layerExDraw, using the engine's Layer primitives.
+try { Plugins.link("layerExDraw.dll"); } catch(e) {}
+if (typeof global.GdiPlus != "Object") {
+class WebGdiMatrix {
+    var a=1, b=0, c=0, d=1, e=0, f=0;
+    function WebGdiMatrix(aa=1,bb=0,cc=0,dd=1,ee=0,ff=0) { a=aa;b=bb;c=cc;d=dd;e=ee;f=ff; }
+    function finalize() {}
+}
+class WebGdiPath {
+    var commands;
+    function WebGdiPath() { commands=[]; }
+    function drawLine(x1,y1,x2,y2) { commands.add([0,x1,y1,x2,y2]); }
+    function drawBezier(x1,y1,x2,y2,x3,y3,x4,y4) { commands.add([1,x1,y1,x2,y2,x3,y3,x4,y4]); }
+    function drawRectangle(x,y,w,h) { commands.add([2,x,y,w,h]); }
+    function clear() { commands.clear(); }
+    function finalize() { commands=void; }
+}
+class WebGdiAppearance {
+    var styles;
+    function WebGdiAppearance() { styles=[]; }
+    function clear() { styles.clear(); }
+    function addPen(color,options,ox=0,oy=0) {
+        var width=1;
+        if (options !== void && options.width !== void) width=+options.width;
+        styles.add(%[color:color,width:width,ox:+ox,oy:+oy,fill:false]);
+    }
+    function addBrush(color,ox=0,oy=0) { styles.add(%[color:color,width:0,ox:+ox,oy:+oy,fill:true]); }
+    function finalize() { styles=void; }
+}
+global.GdiPlus=%[Matrix:WebGdiMatrix,Path:WebGdiPath,Appearance:WebGdiAppearance,LineCapRound:2,LineJoinRound:2];
+global.Layer.webGdiTransform=void;
+global.webGdiPoint=function(layer,style,x,y) {
+    var matrix=void; try { matrix=layer.webGdiTransform; } catch {}
+    x+=style.ox;y+=style.oy;
+    if (matrix===void) return [x,y];
+    return [matrix[0]*x+matrix[2]*y+matrix[4],matrix[1]*x+matrix[3]*y+matrix[5]];
+};
+global.webGdiWidth=function(layer,width) {
+    var matrix=void;try { matrix=layer.webGdiTransform; } catch {}
+    if (matrix!==void) width*=(Math.abs(matrix[0])+Math.abs(matrix[3]))/2;
+    return Math.max(1,Math.round(width));
+};
+global.webGdiSegment=function(layer,style,x1,y1,x2,y2) {
+    if (style.fill) return;
+    var p=global.webGdiPoint(layer,style,x1,y1),q=global.webGdiPoint(layer,style,x2,y2);
+    var w=global.webGdiWidth(layer,style.width),half=w/2,dx=q[0]-p[0],dy=q[1]-p[1];
+    if (Math.abs(dx)<0.5 || Math.abs(dy)<0.5) {
+        layer.fillRect(Math.floor(Math.min(p[0],q[0])-half),Math.floor(Math.min(p[1],q[1])-half),Math.max(w,Math.ceil(Math.abs(dx)+w)),Math.max(w,Math.ceil(Math.abs(dy)+w)),style.color);
+        return;
+    }
+    var steps=Math.ceil(Math.max(Math.abs(dx),Math.abs(dy)));
+    for (var i=0;i<=steps;i++) layer.fillRect(Math.round(p[0]+dx*i/steps-half),Math.round(p[1]+dy*i/steps-half),w,w,style.color);
+};
+global.webGdiCommand=function(layer,style,command) {
+    var kind=command[0];
+    if (kind==0) global.webGdiSegment(layer,style,command[1],command[2],command[3],command[4]);
+    else if (kind==1) {
+        var x=command[1],y=command[2];
+        for (var i=1;i<=24;i++) {
+            var t=i/24.0,u=1-t;
+            var nx=u*u*u*command[1]+3*u*u*t*command[3]+3*u*t*t*command[5]+t*t*t*command[7];
+            var ny=u*u*u*command[2]+3*u*u*t*command[4]+3*u*t*t*command[6]+t*t*t*command[8];
+            global.webGdiSegment(layer,style,x,y,nx,ny);x=nx;y=ny;
+        }
+    } else if (kind==2) {
+        var x=command[1],y=command[2],w=command[3],h=command[4];
+        if (style.fill) {
+            var p=global.webGdiPoint(layer,style,x,y),q=global.webGdiPoint(layer,style,x+w,y+h);
+            layer.fillRect(Math.floor(Math.min(p[0],q[0])),Math.floor(Math.min(p[1],q[1])),Math.max(1,Math.ceil(Math.abs(q[0]-p[0]))),Math.max(1,Math.ceil(Math.abs(q[1]-p[1]))),style.color);
+        } else {
+            global.webGdiSegment(layer,style,x,y,x+w,y);global.webGdiSegment(layer,style,x+w,y,x+w,y+h);
+            global.webGdiSegment(layer,style,x+w,y+h,x,y+h);global.webGdiSegment(layer,style,x,y+h,x,y);
+        }
+    }
+};
+global.Layer.resetTransform=function() { this.webGdiTransform=void; };
+global.Layer.setTransform=function(matrix) { this.webGdiTransform=[matrix.a,matrix.b,matrix.c,matrix.d,matrix.e,matrix.f]; };
+global.Layer.drawPath=function(app,path) {
+    for (var i=0;i<app.styles.count;i++) for (var j=0;j<path.commands.count;j++) global.webGdiCommand(this,app.styles[i],path.commands[j]);
+};
+global.Layer.drawLine=function(app,x1,y1,x2,y2) {
+    for (var i=0;i<app.styles.count;i++) global.webGdiSegment(this,app.styles[i],x1,y1,x2,y2);
+};
+global.Layer.drawRectangle=function(app,x,y,w,h) {
+    for (var i=0;i<app.styles.count;i++) global.webGdiCommand(this,app.styles[i],[2,x,y,w,h]);
+};
+global.Layer.shrinkCopyFast=function(source,xscale,yscale) {
+    var w=Math.max(1,source.width/Math.max(1,xscale)),h=Math.max(1,source.height/Math.max(1,yscale));
+    this.imageWidth=w;this.imageHeight=h;
+    this.stretchCopy(0,0,w,h,source,0,0,source.width,source.height);
+};
+}
