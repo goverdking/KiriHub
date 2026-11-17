@@ -1,0 +1,257 @@
+{
+  "summary": [
+    0,
+    31
+  ],
+  "errors": [],
+  "checks": [
+    {
+      "status": "PASS",
+      "name": "module.loaded",
+      "details": [
+        "loaded",
+        "loaded"
+      ]
+    },
+    {
+      "status": "PASS",
+      "name": "native.survives-legacy-shim",
+      "details": [
+        "1",
+        "1"
+      ]
+    },
+    {
+      "status": "PASS",
+      "name": "clear.pixel",
+      "details": [
+        "1056816",
+        "1056816"
+      ]
+    },
+    {
+      "status": "PASS",
+      "name": "rectangle.interior",
+      "details": [
+        "16711680",
+        "16711680"
+      ]
+    },
+    {
+      "status": "PASS",
+      "name": "rectangle.exterior",
+      "details": [
+        "1056816",
+        "1056816"
+      ]
+    },
+    {
+      "status": "PASS",
+      "name": "rectangle.bounds",
+      "details": [
+        "1",
+        "1"
+      ]
+    },
+    {
+      "status": "PASS",
+      "name": "clip.inside",
+      "details": [
+        "16711680",
+        "16711680"
+      ]
+    },
+    {
+      "status": "PASS",
+      "name": "clip.outside",
+      "details": [
+        "1056816",
+        "1056816"
+      ]
+    },
+    {
+      "status": "PASS",
+      "name": "translate.pixel",
+      "details": [
+        "16711680",
+        "16711680"
+      ]
+    },
+    {
+      "status": "PASS",
+      "name": "scale.pixel",
+      "details": [
+        "16711680",
+        "16711680"
+      ]
+    },
+    {
+      "status": "PASS",
+      "name": "ellipse.center",
+      "details": [
+        "16711680",
+        "16711680"
+      ]
+    },
+    {
+      "status": "PASS",
+      "name": "ellipse.outside",
+      "details": [
+        "1056816",
+        "1056816"
+      ]
+    },
+    {
+      "status": "PASS",
+      "name": "pen.stroke",
+      "details": [
+        "65280",
+        "65280"
+      ]
+    },
+    {
+      "status": "PASS",
+      "name": "alpha.red-half",
+      "details": [
+        "1",
+        "1"
+      ]
+    },
+    {
+      "status": "PASS",
+      "name": "alpha.green-blue",
+      "details": [
+        "0",
+        "0"
+      ]
+    },
+    {
+      "status": "PASS",
+      "name": "image.width",
+      "details": [
+        "8",
+        "8"
+      ]
+    },
+    {
+      "status": "PASS",
+      "name": "image.height",
+      "details": [
+        "8",
+        "8"
+      ]
+    },
+    {
+      "status": "PASS",
+      "name": "image.status",
+      "details": [
+        "0",
+        "0"
+      ]
+    },
+    {
+      "status": "PASS",
+      "name": "image.pixel",
+      "details": [
+        "255",
+        "255"
+      ]
+    },
+    {
+      "status": "PASS",
+      "name": "image.clone",
+      "details": [
+        "8",
+        "8"
+      ]
+    },
+    {
+      "status": "PASS",
+      "name": "image.bounds",
+      "details": [
+        "1",
+        "1"
+      ]
+    },
+    {
+      "status": "PASS",
+      "name": "image.save-png",
+      "details": [
+        "1",
+        "1"
+      ]
+    },
+    {
+      "status": "PASS",
+      "name": "image.saved-dimensions",
+      "details": [
+        "320:240",
+        "320:240"
+      ]
+    },
+    {
+      "status": "PASS",
+      "name": "gradient.red-start",
+      "details": [
+        "1",
+        "1"
+      ]
+    },
+    {
+      "status": "PASS",
+      "name": "gradient.blue-end",
+      "details": [
+        "1",
+        "1"
+      ]
+    },
+    {
+      "status": "PASS",
+      "name": "font.list",
+      "details": [
+        "1",
+        "1"
+      ]
+    },
+    {
+      "status": "PASS",
+      "name": "font.metrics",
+      "details": [
+        "1",
+        "1"
+      ]
+    },
+    {
+      "status": "PASS",
+      "name": "font.measure",
+      "details": [
+        "1",
+        "1"
+      ]
+    },
+    {
+      "status": "PASS",
+      "name": "font.longer",
+      "details": [
+        "1",
+        "1"
+      ]
+    },
+    {
+      "status": "PASS",
+      "name": "font.resize",
+      "details": [
+        "1",
+        "1"
+      ]
+    },
+    {
+      "status": "PASS",
+      "name": "font.actual-glyph-pixels",
+      "details": [
+        "1",
+        "1"
+      ]
+    }
+  ]
+}

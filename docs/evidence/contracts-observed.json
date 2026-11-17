@@ -1,0 +1,243 @@
+{
+  "done": true,
+  "errors": [],
+  "rows": [],
+  "contracts": [
+    {
+      "status": "PASS",
+      "name": "plugins.case-loaded"
+    },
+    {
+      "status": "PASS",
+      "name": "plugins.available"
+    },
+    {
+      "status": "PASS",
+      "name": "plugins.after-link"
+    },
+    {
+      "status": "PASS",
+      "name": "plugins.missing"
+    },
+    {
+      "status": "PASS",
+      "name": "plugins.link-void"
+    },
+    {
+      "status": "PASS",
+      "name": "csv.first"
+    },
+    {
+      "status": "PASS",
+      "name": "csv.second"
+    },
+    {
+      "status": "PASS",
+      "name": "csv.logical-line"
+    },
+    {
+      "status": "PASS",
+      "name": "csv.eof"
+    },
+    {
+      "status": "PASS",
+      "name": "csv.eof-repeat"
+    },
+    {
+      "status": "PASS",
+      "name": "csv.quote-comma-escape-trailing"
+    },
+    {
+      "status": "PASS",
+      "name": "csv.quoted-newline"
+    },
+    {
+      "status": "PASS",
+      "name": "csv.empty-line"
+    },
+    {
+      "status": "PASS",
+      "name": "csv.bare-cr"
+    },
+    {
+      "status": "PASS",
+      "name": "csv.cr-final-char"
+    },
+    {
+      "status": "PASS",
+      "name": "csv.reinit"
+    },
+    {
+      "status": "PASS",
+      "name": "csv.owner-row-and-number"
+    },
+    {
+      "status": "PASS",
+      "name": "csv.parse-exhausted"
+    },
+    {
+      "status": "PASS",
+      "name": "csv.utf8-storage-callback"
+    },
+    {
+      "status": "PASS",
+      "name": "csv.instance-callback"
+    },
+    {
+      "status": "PASS",
+      "name": "csv.callback-error-propagates"
+    },
+    {
+      "status": "PASS",
+      "name": "csv.callback-error-closes-input"
+    },
+    {
+      "status": "PASS",
+      "name": "font.missing"
+    },
+    {
+      "status": "PASS",
+      "name": "font.result-type"
+    },
+    {
+      "status": "PASS",
+      "name": "font.registered"
+    },
+    {
+      "status": "PASS",
+      "name": "font.repeat"
+    },
+    {
+      "status": "PASS",
+      "name": "font.invalid-file"
+    },
+    {
+      "status": "PASS",
+      "name": "font.original-api"
+    },
+    {
+      "status": "PASS",
+      "name": "kag.label"
+    },
+    {
+      "status": "PASS",
+      "name": "kag.tag"
+    },
+    {
+      "status": "PASS",
+      "name": "kag.quoted-attribute"
+    },
+    {
+      "status": "PASS",
+      "name": "kag.after-store"
+    },
+    {
+      "status": "PASS",
+      "name": "kag.restore"
+    },
+    {
+      "status": "PASS",
+      "name": "kag.jump"
+    },
+    {
+      "status": "PASS",
+      "name": "kag.assign"
+    },
+    {
+      "status": "PASS",
+      "name": "kag.macro-attribute"
+    },
+    {
+      "status": "PASS",
+      "name": "kag.condition-skips"
+    },
+    {
+      "status": "PASS",
+      "name": "kag.macro-eof"
+    },
+    {
+      "status": "PASS",
+      "name": "kag.call"
+    },
+    {
+      "status": "PASS",
+      "name": "kag.call-stack"
+    },
+    {
+      "status": "PASS",
+      "name": "kag.return"
+    },
+    {
+      "status": "PASS",
+      "name": "kag.return-stack"
+    },
+    {
+      "status": "PASS",
+      "name": "kag.restore-call-stack"
+    },
+    {
+      "status": "PASS",
+      "name": "kag.restore-return"
+    },
+    {
+      "status": "PASS",
+      "name": "kag.jump-tag"
+    },
+    {
+      "status": "PASS",
+      "name": "kag.rejects-invalid-saved-cursor"
+    },
+    {
+      "status": "PASS",
+      "name": "text.render-return"
+    },
+    {
+      "status": "PASS",
+      "name": "text.count"
+    },
+    {
+      "status": "PASS",
+      "name": "text.content"
+    },
+    {
+      "status": "PASS",
+      "name": "text.characters"
+    },
+    {
+      "status": "PASS",
+      "name": "text.first"
+    },
+    {
+      "status": "PASS",
+      "name": "text.measured-width"
+    },
+    {
+      "status": "PASS",
+      "name": "text.position-increases"
+    },
+    {
+      "status": "PASS",
+      "name": "text.bounds"
+    },
+    {
+      "status": "PASS",
+      "name": "text.clear"
+    },
+    {
+      "status": "PASS",
+      "name": "text.multiline"
+    },
+    {
+      "status": "PASS",
+      "name": "text.multiline-count"
+    },
+    {
+      "status": "PASS",
+      "name": "text.rejects-negative-index"
+    }
+  ],
+  "contractSummary": [
+    0,
+    58
+  ]
+}

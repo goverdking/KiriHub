@@ -1,0 +1,297 @@
+{
+  "summary": [
+    0,
+    36
+  ],
+  "errors": [],
+  "checks": [
+    {
+      "status": "PASS",
+      "name": "module.loaded",
+      "details": [
+        "loaded",
+        "loaded"
+      ]
+    },
+    {
+      "status": "PASS",
+      "name": "amv.frames",
+      "details": [
+        "3",
+        "3"
+      ]
+    },
+    {
+      "status": "PASS",
+      "name": "amv.screen",
+      "details": [
+        "16:16",
+        "16:16"
+      ]
+    },
+    {
+      "status": "PASS",
+      "name": "amv.fps",
+      "details": [
+        "10",
+        "10"
+      ]
+    },
+    {
+      "status": "PASS",
+      "name": "amv.start-playing",
+      "details": [
+        "1",
+        "1"
+      ]
+    },
+    {
+      "status": "PASS",
+      "name": "amv.frame-zero",
+      "details": [
+        "0",
+        "0"
+      ]
+    },
+    {
+      "status": "PASS",
+      "name": "amv.transparent",
+      "details": [
+        "0",
+        "0"
+      ]
+    },
+    {
+      "status": "PASS",
+      "name": "amv.frame-one",
+      "details": [
+        "1",
+        "1"
+      ]
+    },
+    {
+      "status": "PASS",
+      "name": "amv.half-alpha",
+      "details": [
+        "128",
+        "128"
+      ]
+    },
+    {
+      "status": "PASS",
+      "name": "amv.gray-dct",
+      "details": [
+        "1",
+        "1"
+      ]
+    },
+    {
+      "status": "PASS",
+      "name": "amv.frame-two",
+      "details": [
+        "2",
+        "2"
+      ]
+    },
+    {
+      "status": "PASS",
+      "name": "amv.opaque",
+      "details": [
+        "255",
+        "255"
+      ]
+    },
+    {
+      "status": "PASS",
+      "name": "amv.end-stopped",
+      "details": [
+        "0",
+        "0"
+      ]
+    },
+    {
+      "status": "PASS",
+      "name": "amv.after-end-no-frame",
+      "details": [
+        "2",
+        "2"
+      ]
+    },
+    {
+      "status": "PASS",
+      "name": "amv.seek",
+      "details": [
+        "1",
+        "1"
+      ]
+    },
+    {
+      "status": "PASS",
+      "name": "amv.loop-last",
+      "details": [
+        "2",
+        "2"
+      ]
+    },
+    {
+      "status": "PASS",
+      "name": "amv.loop-rewind",
+      "details": [
+        "0",
+        "0"
+      ]
+    },
+    {
+      "status": "PASS",
+      "name": "amv.loop-playing",
+      "details": [
+        "1",
+        "1"
+      ]
+    },
+    {
+      "status": "PASS",
+      "name": "amv.layer-position",
+      "details": [
+        "7:9",
+        "7:9"
+      ]
+    },
+    {
+      "status": "PASS",
+      "name": "amv.stop",
+      "details": [
+        "0",
+        "0"
+      ]
+    },
+    {
+      "status": "PASS",
+      "name": "amv.preload-range",
+      "details": [
+        "1",
+        "1"
+      ]
+    },
+    {
+      "status": "PASS",
+      "name": "amv.block-alpha",
+      "details": [
+        "128",
+        "128"
+      ]
+    },
+    {
+      "status": "PASS",
+      "name": "amv.block-end",
+      "details": [
+        "0",
+        "0"
+      ]
+    },
+    {
+      "status": "PASS",
+      "name": "amv.single-frame",
+      "details": [
+        "0",
+        "0"
+      ]
+    },
+    {
+      "status": "PASS",
+      "name": "amv.crop-size",
+      "details": [
+        "17:17",
+        "17:17"
+      ]
+    },
+    {
+      "status": "PASS",
+      "name": "amv.crop-edge-alpha",
+      "details": [
+        "128",
+        "128"
+      ]
+    },
+    {
+      "status": "PASS",
+      "name": "amv.single-end",
+      "details": [
+        "0",
+        "0"
+      ]
+    },
+    {
+      "status": "PASS",
+      "name": "amv.bad-seek",
+      "details": [
+        "1",
+        "1"
+      ]
+    },
+    {
+      "status": "PASS",
+      "name": "amv.bad-header",
+      "details": [
+        "1",
+        "1"
+      ]
+    },
+    {
+      "status": "PASS",
+      "name": "amv.truncated-chunk",
+      "details": [
+        "1",
+        "1"
+      ]
+    },
+    {
+      "status": "PASS",
+      "name": "amv.error-stops",
+      "details": [
+        "0",
+        "0"
+      ]
+    },
+    {
+      "status": "PASS",
+      "name": "amv.nonzero-ac-idct",
+      "details": [
+        "1",
+        "1"
+      ]
+    },
+    {
+      "status": "PASS",
+      "name": "amv.idct-alpha",
+      "details": [
+        "128",
+        "128"
+      ]
+    },
+    {
+      "status": "PASS",
+      "name": "amv.fullhd-size",
+      "details": [
+        "1920:1080",
+        "1920:1080"
+      ]
+    },
+    {
+      "status": "PASS",
+      "name": "amv.fullhd-last-edge",
+      "details": [
+        "128",
+        "128"
+      ]
+    },
+    {
+      "status": "PASS",
+      "name": "amv.fullhd-end",
+      "details": [
+        "0",
+        "0"
+      ]
+    }
+  ]
+}

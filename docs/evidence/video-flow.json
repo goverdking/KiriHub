@@ -1,0 +1,136 @@
+{
+  "summary": [
+    0,
+    15
+  ],
+  "errors": [],
+  "checks": [
+    {
+      "status": "PASS",
+      "name": "video.prepare-status",
+      "details": [
+        "pause",
+        "pause"
+      ]
+    },
+    {
+      "status": "PASS",
+      "name": "video.prepare-frame",
+      "details": [
+        "0",
+        "0"
+      ]
+    },
+    {
+      "status": "PASS",
+      "name": "video.layer-size",
+      "details": [
+        "96:64",
+        "96:64"
+      ]
+    },
+    {
+      "status": "PASS",
+      "name": "video.layer-decoded-pixel",
+      "details": [
+        "1",
+        "1"
+      ]
+    },
+    {
+      "status": "PASS",
+      "name": "video.period-event",
+      "details": [
+        "1",
+        "1"
+      ]
+    },
+    {
+      "status": "PASS",
+      "name": "video.frame-events",
+      "details": [
+        "1",
+        "1"
+      ]
+    },
+    {
+      "status": "PASS",
+      "name": "video.segment-loop",
+      "details": [
+        "1",
+        "1"
+      ]
+    },
+    {
+      "status": "PASS",
+      "name": "video.seek-frame",
+      "details": [
+        "12",
+        "12"
+      ]
+    },
+    {
+      "status": "PASS",
+      "name": "video.pause-status",
+      "details": [
+        "pause",
+        "pause"
+      ]
+    },
+    {
+      "status": "PASS",
+      "name": "video.audio-volume",
+      "details": [
+        "50000",
+        "50000"
+      ]
+    },
+    {
+      "status": "PASS",
+      "name": "video.play-rate",
+      "details": [
+        "1.250000000000000",
+        "1.250000000000000"
+      ]
+    },
+    {
+      "status": "PASS",
+      "name": "video.ended-status",
+      "details": [
+        "stop",
+        "stop"
+      ]
+    },
+    {
+      "status": "PASS",
+      "name": "video.prepare-again",
+      "details": [
+        "2",
+        "2"
+      ]
+    },
+    {
+      "status": "PASS",
+      "name": "video.prepare-rewinds",
+      "details": [
+        "0",
+        "0"
+      ]
+    },
+    {
+      "status": "PASS",
+      "name": "video.error-distinct-from-end",
+      "details": [
+        "load error",
+        "load error"
+      ]
+    },
+    {
+      "status": "PASS",
+      "name": "video.invalidate-removes-element",
+      "details": [
+        "0"
+      ]
+    }
+  ]
+}
