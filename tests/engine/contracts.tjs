@@ -1,0 +1,149 @@
+// Asset-free behavior tests; errors stay visible as FAIL records.
+global.contractFailures = 0;
+global.contractChecks = 0;
+function check(name, actual, expected) {
+    global.contractChecks++;
+    var ok = actual === expected;
+    if (!ok) global.contractFailures++;
+    Debug.message("CONTRACT|" + (ok ? "PASS" : "FAIL") + "|" + name + "|" + actual + "|" + expected);
+}
+function test(name, body) {
+    try { body(); }
+    catch(e) { global.contractFailures++; Debug.message("CONTRACT|FAIL|" + name + "|EXCEPTION:" + e.message); }
+}
+Plugins.link("csvParser.dll");
+Plugins.link("addFont.dll");
+Plugins.link("KAGParser.dll");
+Plugins.link("TextRender.dll");
+// Repeated/case-varied links must leave working native classes intact.
+Plugins.link("CSVPARSER.DLL");
+test("plugin-diagnostics", function() {
+    check("plugins.case-loaded", Plugins.getWebModuleStatus("CSVPARSER.DLL"), "loaded");
+    check("plugins.available", Plugins.getWebModuleStatus("ScriptsEx.dll"), "available");
+    Plugins.link("ScriptsEx.dll");
+    check("plugins.after-link", Plugins.getWebModuleStatus("ScriptsEx.dll"), "loaded");
+    check("plugins.missing", Plugins.getWebModuleStatus("missing-contract.dll"), "missing");
+    check("plugins.link-void", typeof Plugins.link("missing-contract.dll"), "void");
+});
+test("csv", function() {
+    var p = new CSVParser();
+    p.init("a,b\r\nc,d\n");
+    check("csv.first", p.getNextLine().join("/"), "a/b");
+    check("csv.second", p.getNextLine().join("/"), "c/d");
+    check("csv.logical-line", p.currentLineNumber, 2);
+    check("csv.eof", typeof p.getNextLine(), "void");
+    check("csv.eof-repeat", typeof p.getNextLine(), "void");
+    p.init("\"a,b\",\"c\"\"d\",\n\"one\ntwo\",z\n\n");
+    check("csv.quote-comma-escape-trailing", p.getNextLine().join("/"), "a,b/c\"d/");
+    check("csv.quoted-newline", p.getNextLine().join("/"), "one\r\ntwo/z");
+    check("csv.empty-line", p.getNextLine().count, 0);
+    p.init("x\ry");
+    check("csv.bare-cr", p.getNextLine()[0], "x");
+    check("csv.cr-final-char", p.getNextLine()[0], "y");
+    p.init("discard"); p.init("replacement");
+    check("csv.reinit", p.getNextLine()[0], "replacement");
+    invalidate p;
+});
+global.contractRows = [];
+global.contractOwner = %["doLine" => function(row, line) {
+    global.contractRows.add(line + ":" + row.join("/"));
+}];
+test("csv-callback", function() {
+    var p = new CSVParser(global.contractOwner, 9, "~");
+    p.parse("a\tb\n\"c\nd\"\te");
+    check("csv.owner-row-and-number", global.contractRows.join(";"), "1:a/b;2:c~d/e");
+    check("csv.parse-exhausted", typeof p.getNextLine(), "void");
+    global.contractRows.clear();
+    p.parseStorage("file://./contract-utf8.csv", true);
+    check("csv.utf8-storage-callback", global.contractRows.join(";"), "1:中文/日本語;2:第二行/末尾");
+    invalidate p;
+});
+test("csv-self-callback", function() {
+    var p = new CSVParser();
+    p.doLine = function(row, line) { global.contractRows.add(line + ":" + row[0]); };
+    global.contractRows.clear();
+    p.init("one\ntwo"); p.parse();
+    check("csv.instance-callback", global.contractRows.join(";"), "1:one;2:two");
+    p.doLine = function(row, line) { throw new Exception("callback-marker"); };
+    var propagated = false;
+    try { p.parse("a\nb"); } catch(e) { propagated = e.message == "callback-marker"; }
+    check("csv.callback-error-propagates", propagated, true);
+    check("csv.callback-error-closes-input", typeof p.getNextLine(), "void");
+    invalidate p;
+});
+test("font", function() {
+    check("font.missing", typeof System.addFont("missing-font.ttf"), "void");
+    var count = System.addFont("file://./webcompat/font.otf");
+    check("font.result-type", typeof count, "Integer");
+    check("font.registered", count > 0, true);
+    check("font.repeat", System.addFont("file://./webcompat/font.otf"), count);
+    check("font.invalid-file", System.addFont("file://./contract-utf8.csv"), 0);
+    check("font.original-api", Font.addFont("file://./webcompat/font.otf") instanceof "Array", true);
+});
+test("kag", function() {
+    var p = new KAGParser();
+    p.loadScenario("file://./contract-basic.ks");
+    p.goToLabel("*start");
+    var tag = p.getNextTag();
+    check("kag.label", p.curLabel, "*start");
+    check("kag.tag", tag.tagname, "test");
+    check("kag.quoted-attribute", tag.value, "hello world");
+    var state = p.store();
+    check("kag.after-store", p.getNextTag().value, "second");
+    p.restore(state);
+    check("kag.restore", p.getNextTag().value, "second");
+    p.goToLabel("*end");
+    check("kag.jump", p.getNextTag().value, "last");
+    p.goToLabel("*start"); p.getNextTag();
+    var other = new KAGParser(); other.assign(p);
+    check("kag.assign", other.getNextTag().value, "second");
+    p.ignoreCR = true;
+    p.loadScenario("file://./contract-macro.ks");
+    check("kag.macro-attribute", p.getNextTag().value, "expanded");
+    check("kag.condition-skips", p.getNextTag().value, "visible");
+    check("kag.macro-eof", typeof p.getNextTag(), "void");
+    p.loadScenario("file://./contract-call.ks");
+    check("kag.call", p.getNextTag().value, "sub");
+    check("kag.call-stack", p.callStackDepth, 1);
+    var callState = p.store();
+    check("kag.return", p.getNextTag().value, "after");
+    check("kag.return-stack", p.callStackDepth, 0);
+    p.restore(callState);
+    check("kag.restore-call-stack", p.callStackDepth, 1);
+    check("kag.restore-return", p.getNextTag().value, "after");
+    check("kag.jump-tag", p.getNextTag().value, "end");
+    var badState = p.store(); badState.curLine = 999999;
+    var rejected = false;
+    try { p.restore(badState); } catch(e) { rejected = true; }
+    check("kag.rejects-invalid-saved-cursor", rejected, true);
+    invalidate other; invalidate p;
+});
+test("textrender", function() {
+    var t = new TextRenderBase();
+    t.onGetTextWidth = function(text, size) { return text.length * size / 2; };
+    t.onFontChange = function(style) {};
+    t.setRenderSize(400, 200);
+    t.setDefault(%["fontsize" => 20, "linesize" => 24]);
+    t.resetFont();
+    check("text.render-return", t.render("ABC", 0, 10), 1);
+    t.done();
+    check("text.count", t.renderCount, 3);
+    check("text.content", t.renderText, "ABC\n");
+    var chars = t.getCharacters(0, 0);
+    check("text.characters", chars.count, 3);
+    check("text.first", chars[0].text, "A");
+    check("text.measured-width", chars[0].cw, 10.0);
+    check("text.position-increases", chars[2].x > chars[0].x, true);
+    check("text.bounds", t.renderRight > t.renderLeft, true);
+    t.clear();
+    check("text.clear", t.renderCount, 0);
+    t.render("AB\nCD", 0, 10); t.done();
+    check("text.multiline", t.renderLines, 2);
+    check("text.multiline-count", t.getCharacters(0, 0).count, 4);
+    var rejected = false;
+    try { t.getCharacters(-1, 1); } catch(e) { rejected = true; }
+    check("text.rejects-negative-index", rejected, true);
+    invalidate t;
+});
+Debug.message("CONTRACT_COMPLETE|" + global.contractFailures + "|" + global.contractChecks);
+Debug.message("AUDIT_COMPLETE");

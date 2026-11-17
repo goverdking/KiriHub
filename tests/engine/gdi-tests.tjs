@@ -1,0 +1,108 @@
+global.failures = 0;
+global.checks = 0;
+function check(name, actual, expected) {
+    global.checks++;
+    var ok = actual === expected;
+    if (!ok) global.failures++;
+    Debug.message("CHECK|" + (ok ? "PASS" : "FAIL") + "|" + name + "|" + actual + "|" + expected);
+}
+function test(name, body) {
+    try { body(); }
+    catch(e) { global.failures++; Debug.message("CHECK|FAIL|" + name + "|" + e.message); }
+}
+Plugins.link("layerExDraw.dll");
+check("module.loaded", Plugins.getWebModuleStatus("layerExDraw.dll"), "loaded");
+var nativeGdi = GdiPlus;
+Scripts.execStorage("file://./webcompat/web-gdiplus.tjs");
+check("native.survives-legacy-shim", GdiPlus === nativeGdi, true);
+global.testWindow = new Window(); testWindow.setSize(320, 240); testWindow.visible = true;
+global.layer = new Layer(testWindow, null);
+layer.setSize(320, 240); layer.visible = true;
+global.solid = new GdiPlus.Appearance(); solid.addBrush(0xffff0000, 0, 0);
+test("fill", function() {
+    layer.clear(0xff102030);
+    check("clear.pixel", layer.getMainPixel(5, 5), 0x102030);
+    var box = layer.drawRectangle(solid, 10, 10, 40, 30);
+    check("rectangle.interior", layer.getMainPixel(20,20), 0xff0000);
+    check("rectangle.exterior", layer.getMainPixel(70,20), 0x102030);
+    check("rectangle.bounds", box.width >= 40 && box.height >= 30, true);
+});
+test("clip", function() {
+    layer.setClip(0,0,20,20);
+    layer.drawRectangle(solid, 0,0,50,50);
+    check("clip.inside", layer.getMainPixel(5,5), 0xff0000);
+    check("clip.outside", layer.getMainPixel(30,45), 0x102030);
+    layer.setClip(0,0,320,240);
+});
+test("transform", function() {
+    layer.translateTransform(80,0);
+    layer.drawRectangle(solid, 0,0,20,20);
+    check("translate.pixel", layer.getMainPixel(85,5), 0xff0000);
+    layer.resetTransform();
+    layer.scaleTransform(2,2);
+    layer.drawRectangle(solid, 50,10,10,10);
+    check("scale.pixel", layer.getMainPixel(110,30), 0xff0000);
+    layer.resetTransform();
+});
+test("path", function() {
+    var path = new GdiPlus.Path();
+    path.drawEllipse(140,10,30,30);
+    layer.drawPath(solid, path);
+    check("ellipse.center", layer.getMainPixel(155,25), 0xff0000);
+    check("ellipse.outside", layer.getMainPixel(140,10), 0x102030);
+    var pen = new GdiPlus.Appearance(); pen.addPen(0xff00ff00, 4, 0, 0);
+    layer.drawLine(pen, 10,70,80,70);
+    check("pen.stroke", layer.getMainPixel(30,70), 0x00ff00);
+});
+test("alpha", function() {
+    layer.clear(0xff000000);
+    var semi = new GdiPlus.Appearance(); semi.addBrush(0x80ff0000,0,0);
+    layer.drawRectangle(semi,10,10,20,20);
+    var pixel = layer.getMainPixel(15,15);
+    check("alpha.red-half", ((pixel >> 16) & 255) >= 127 && ((pixel >> 16) & 255) <= 129, true);
+    check("alpha.green-blue", pixel & 65535, 0);
+});
+test("image", function() {
+    var image = new GdiPlus.Image("file://./data.xp3>images/blue.png");
+    check("image.width", image.GetWidth(), 8);
+    check("image.height", image.GetHeight(), 8);
+    check("image.status", image.GetLastStatus(), GdiPlus.Ok);
+    layer.drawImage(50,50,image);
+    check("image.pixel", layer.getMainPixel(53,53), 0x0000ff);
+    var copy = image.Clone();
+    check("image.clone", copy.GetWidth(), 8);
+    var bounds = image.GetBounds();
+    check("image.bounds", bounds.width == 8 && bounds.height == 8, true);
+    var storage = System.dataPath + "gdi-roundtrip.png";
+    check("image.save-png", layer.saveImage(storage, "image/png"), true);
+    var saved = new GdiPlus.Image(storage);
+    check("image.saved-dimensions", saved.GetWidth() + ":" + saved.GetHeight(), "320:240");
+});
+test("gradient", function() {
+    var gradient = new GdiPlus.Appearance();
+    gradient.addBrush(%[type:GdiPlus.BrushTypeLinearGradient, point1:[10,20],point2:[110,20],color1:0xffff0000,color2:0xff0000ff],0,0);
+    layer.drawRectangle(gradient,10,20,100,20);
+    var left = layer.getMainPixel(15,30), right = layer.getMainPixel(105,30);
+    check("gradient.red-start", ((left >> 16) & 255) > (left & 255), true);
+    check("gradient.blue-end", (right & 255) > ((right >> 16) & 255), true);
+});
+test("font", function() {
+    GdiPlus.addPrivateFont("file://./webcompat/font.otf");
+    check("font.list", GdiPlus.getFontList(false).count > 0, true);
+    global.font = new GdiPlus.Font("Noto Sans CJK JP", 24, GdiPlus.FontStyleRegular);
+    check("font.metrics", font.ascent > 0 && font.lineSpacing > 0, true);
+    var a = layer.measureString(font, "ABC");
+    var b = layer.measureString(font, "ABCABC");
+    check("font.measure", a.width > 0 && a.height > 0, true);
+    check("font.longer", b.width > a.width, true);
+    var before = a.height;
+    font.emSize = 36;
+    check("font.resize", layer.measureString(font, "ABC").height > before, true);
+    font.emSize = 24;
+    var white = new GdiPlus.Appearance(); white.addBrush(0xffffffff, 0, 0);
+    layer.drawString(font, white, 10,110,"ABC中文");
+    var pixels = 0;
+    for(var y = 70; y < 125; y++) for(var x = 0; x < 180; x++) if(layer.getMainPixel(x,y) == 0xffffff) pixels++;
+    check("font.actual-glyph-pixels", pixels > 30, true);
+});
+Debug.message("PHASE2_COMPLETE|" + global.failures + "|" + global.checks);

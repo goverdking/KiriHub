@@ -1,0 +1,97 @@
+global.failures = 0;
+global.checks = 0;
+function check(name, actual, expected) {
+    global.checks++;
+    var ok = actual === expected;
+    if (!ok) global.failures++;
+    Debug.message("CHECK|" + (ok ? "PASS" : "FAIL") + "|" + name + "|" + actual + "|" + expected);
+}
+function test(name, body) {
+    try { body(); } catch(e) { global.failures++; Debug.message("CHECK|FAIL|" + name + "|" + e.message); }
+}
+Plugins.link("AlphaMovie.dll");
+check("module.loaded", Plugins.getWebModuleStatus("AlphaMovie.dll"), "loaded");
+global.testWindow = new Window(); testWindow.setSize(256,128); testWindow.visible = true;
+global.rootLayer = new Layer(testWindow, null); rootLayer.setSize(256,128); rootLayer.visible = true;
+global.layer = new Layer(testWindow, rootLayer); layer.setSize(16,16); layer.visible = true;
+global.movie = new AlphaMovie();
+test("separate", function() {
+    movie.open("file://./data.xp3>alpha/separate.amv");
+    check("amv.frames", movie.numOfFrame, 3);
+    check("amv.screen", movie.screenWidth + ":" + movie.screenHeight, "16:16");
+    check("amv.fps", movie.FPSRate, 10);
+    movie.loop = false; movie.play();
+    check("amv.start-playing", movie.isPlaying(), true);
+    check("amv.frame-zero", movie.showNextImage(layer), 0);
+    check("amv.transparent", layer.getMaskPixel(5,5), 0);
+    check("amv.frame-one", movie.showNextImage(layer), 1);
+    check("amv.half-alpha", layer.getMaskPixel(5,5), 128);
+    var pixel = layer.getMainPixel(5,5);
+    check("amv.gray-dct", ((pixel>>16)&255) >= 123 && ((pixel>>16)&255) <= 133, true);
+    check("amv.frame-two", movie.showNextImage(layer), 2);
+    check("amv.opaque", layer.getMaskPixel(5,5), 255);
+    check("amv.end-stopped", movie.isPlaying(), false);
+    check("amv.after-end-no-frame", movie.showNextImage(layer), 2);
+});
+test("seek-loop", function() {
+    movie.loop = true; movie.play(); movie.frame = 1;
+    check("amv.seek", movie.showNextImage(layer), 1);
+    check("amv.loop-last", movie.showNextImage(layer), 2);
+    check("amv.loop-rewind", movie.showNextImage(layer), 0);
+    check("amv.loop-playing", movie.isPlaying(), true);
+    movie.setPosition(7,9); movie.showNextImage(layer);
+    check("amv.layer-position", layer.left + ":" + layer.top, "7:9");
+    movie.stop(); check("amv.stop", movie.isPlaying(), false);
+    movie.preloadSamples = 0;
+    check("amv.preload-range", movie.preloadSamples >= 1, true);
+});
+test("block", function() {
+    movie.open("file://./data.xp3>alpha/block.amv"); movie.loop=false; movie.play();
+    movie.showNextImage(layer);
+    check("amv.block-alpha", layer.getMaskPixel(5,5), 128);
+    movie.showNextImage(layer);
+    check("amv.block-end", movie.isPlaying(), false);
+});
+test("cropped", function() {
+    movie.open("file://./data.xp3>alpha/cropped.amv"); movie.loop=false; movie.play();
+    check("amv.single-frame", movie.showNextImage(layer), 0);
+    check("amv.crop-size", layer.imageWidth + ":" + layer.imageHeight, "17:17");
+    check("amv.crop-edge-alpha", layer.getMaskPixel(16,16), 128);
+    check("amv.single-end", movie.isPlaying(), false);
+});
+test("errors", function() {
+    var rejected = false;
+    try { movie.frame=99999; } catch(e) { rejected=true; }
+    check("amv.bad-seek", rejected, true);
+    rejected = false;
+    try { movie.open("file://./data.xp3>alpha/invalid.amv"); } catch(e) { rejected=true; }
+    check("amv.bad-header", rejected, true);
+    movie.open("file://./data.xp3>alpha/truncated.amv"); movie.loop=false; movie.play();
+    movie.showNextImage(layer); movie.showNextImage(layer);
+    rejected = false;
+    try { movie.showNextImage(layer); } catch(e) { rejected=true; }
+    check("amv.truncated-chunk", rejected, true);
+    check("amv.error-stops", movie.isPlaying(), false);
+});
+test("idct-detail", function() {
+    movie.open("file://./data.xp3>alpha/dct-detail.amv"); movie.loop=false; movie.play(); movie.showNextImage(layer);
+    var minimum = 255, maximum = 0;
+    for(var x=0;x<8;x++) {
+        var value = layer.getMainPixel(x,0) & 255;
+        if(value < minimum) minimum=value;
+        if(value > maximum) maximum=value;
+    }
+    check("amv.nonzero-ac-idct", maximum-minimum > 3, true);
+    check("amv.idct-alpha", layer.getMaskPixel(5,5), 128);
+});
+test("fullhd", function() {
+    movie.open("file://./data.xp3>alpha/fullhd.amv"); movie.loop=false; movie.play();
+    var started = System.getTickCount();
+    movie.showNextImage(layer); movie.showNextImage(layer); movie.showNextImage(layer);
+    var elapsed = System.getTickCount()-started;
+    check("amv.fullhd-size", layer.imageWidth + ":" + layer.imageHeight, "1920:1080");
+    check("amv.fullhd-last-edge", layer.getMaskPixel(1919,1079), 128);
+    check("amv.fullhd-end", movie.isPlaying(), false);
+    Debug.message("MEASURE|amv-fullhd-three-frames-ms|" + elapsed);
+});
+Debug.message("PHASE2_COMPLETE|" + global.failures + "|" + global.checks);

@@ -1,0 +1,61 @@
+global.failures=0; global.checks=0;
+function check(name,actual,expected) {
+    global.checks++;
+    var ok=actual===expected; if(!ok) global.failures++;
+    Debug.message("CHECK|"+(ok?"PASS":"FAIL")+"|"+name+"|"+actual+"|"+expected);
+}
+global.videoWindow=new Window(); videoWindow.setSize(320,240); videoWindow.visible=true;
+global.videoLayer=new Layer(videoWindow,null); videoLayer.setSize(96,64); videoLayer.visible=true;
+global.videoPeriods=[]; global.videoFrames=[]; global.videoStatus="initial"; global.preparedCount=0;
+global.videoTest=new VideoOverlay(videoWindow);
+videoTest.mode=1; videoTest.layer1=videoLayer; videoTest.visible=true;
+videoTest.onStatusChanged=function(status) { global.videoStatus=status; };
+videoTest.onFrameUpdate=function(frame) { global.videoFrames.add(frame); };
+videoTest.onPeriod=function(reason) { global.videoPeriods.add(reason); if(reason==2) global.preparedCount++; };
+global.stage=0; global.started=System.getTickCount();
+global.videoTimer=new Timer(global);
+videoTimer.interval=50;
+videoTimer.onTimer=function() {
+    try {
+        if(System.getTickCount()-global.started>15000) throw new Exception("Video test timeout at stage "+global.stage);
+        if(global.stage==0 && global.preparedCount==1) {
+            check("video.prepare-status",global.videoStatus,"pause");
+            check("video.prepare-frame",videoTest.frame,0);
+            check("video.layer-size",videoLayer.imageWidth+":"+videoLayer.imageHeight,"96:64");
+            var pixel=videoLayer.getMainPixel(10,10);
+            check("video.layer-decoded-pixel",((pixel>>16)&255)>220 && (pixel&65535)<4096,true);
+            videoTest.setPeriodEvent(2); videoTest.play(); global.stage=1;
+        } else if(global.stage==1 && global.videoPeriods.find(1)>=0 && global.videoFrames.count>2) {
+            check("video.period-event",global.videoPeriods.find(1)>=0,true);
+            check("video.frame-events",global.videoFrames.count>2,true);
+            videoTest.setSegmentLoop(3,7); videoTest.frame=3; videoTest.play(); global.stage=2;
+        } else if(global.stage==2 && global.videoPeriods.find(3)>=0) {
+            check("video.segment-loop",global.videoPeriods.find(3)>=0,true);
+            videoTest.cancelSegmentLoop(); videoTest.pause(); videoTest.frame=12; global.stage=3;
+        } else if(global.stage==3 && videoTest.frame==12 && global.videoStatus=="pause") {
+            check("video.seek-frame",videoTest.frame,12);
+            check("video.pause-status",global.videoStatus,"pause");
+            videoTest.audioVolume=50000; videoTest.playRate=1.25;
+            check("video.audio-volume",videoTest.audioVolume,50000);
+            check("video.play-rate",videoTest.playRate,1.25);
+            videoTest.loop=false; videoTest.frame=18; videoTest.play(); global.stage=4;
+        } else if(global.stage==4 && global.videoStatus=="stop") {
+            check("video.ended-status",global.videoStatus,"stop");
+            videoTest.prepare(); global.stage=5;
+        } else if(global.stage==5 && global.preparedCount==2 && global.videoStatus=="pause" && videoTest.frame==0) {
+            check("video.prepare-again",global.preparedCount,2);
+            check("video.prepare-rewinds",videoTest.frame,0);
+            videoTest.open("broken.wmv"); global.stage=6;
+        } else if(global.stage==6 && global.videoStatus=="load error") {
+            check("video.error-distinct-from-end",global.videoStatus,"load error");
+            invalidate videoTest;
+            videoTimer.enabled=false;
+            Debug.message("PHASE2_COMPLETE|"+global.failures+"|"+global.checks);
+        }
+    } catch(e) {
+        global.failures++; videoTimer.enabled=false;
+        Debug.message("CHECK|FAIL|video-flow|"+e.message);
+        Debug.message("PHASE2_COMPLETE|"+global.failures+"|"+global.checks);
+    }
+};
+videoTest.open("contract.wmv"); videoTest.prepare(); videoTimer.enabled=true;
