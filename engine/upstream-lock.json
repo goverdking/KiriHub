@@ -1,0 +1,22 @@
+{
+  "engine": {
+    "url": "https://github.com/krkrsdl2/krkrsdl2.git",
+    "commit": "8cea1820d5cbb52afba96ff36f75243decb9dab4"
+  },
+  "core": {
+    "url": "https://github.com/krkrsdl2/krkrz.git",
+    "commit": "b11c43a07543756fcb943a60ff0a949a7f470f10"
+  },
+  "pluginReference": {
+    "url": "https://github.com/fenghengzhi/krkr2.git",
+    "commit": "443ccb37b181cebe2cdc4472f0aa8c58b88ed51e"
+  },
+  "lastVerified": {
+    "emscripten": "6.0.9",
+    "freetype": "2.13.3",
+    "threads": false,
+    "asyncify": true,
+    "wasmExceptions": true,
+    "wasmSha256": "c0e633dd489c7bc63a61e6f594f063431cce663af04b53512781323bcc5aebc0"
+  }
+}
