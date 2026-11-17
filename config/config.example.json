@@ -1,0 +1,15 @@
+{
+  "roots": [
+    "/srv/gal"
+  ],
+  "profiles": [],
+  "runtime": "/engines/krkrsdl2/index.html",
+  "genericCompatibility": {
+    "startup.tjs": "/engines/krkrsdl2/compat/startup.tjs",
+    "PolyfillInitialize.tjs": "/engines/krkrsdl2/compat/PolyfillInitialize.tjs",
+    "KAGParser.tjs": "/engines/krkrsdl2/compat/KAGParser.tjs",
+    "MenuItem_stub.tjs": "/engines/krkrsdl2/compat/MenuItem_stub.tjs",
+    "web-csv.tjs": "/engines/krkrsdl2/compat/web-csv.tjs",
+    "font.otf": "/engines/krkrsdl2/compat/font.otf"
+  }
+}
