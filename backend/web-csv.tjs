@@ -1,0 +1,55 @@
+// CSV/TSV reader for KAG configuration and UI tables; no native DLL is required.
+class CSVParser {
+    var separator = ",";
+    var owner = void;
+    var currentLineNumber = 0;
+    var _text = "", _position = 0;
+    function CSVParser(target = void, delimiterCode = void) {
+        var code = delimiterCode;
+        if (typeof target == "Integer" || typeof target == "Real" || typeof target == "String") {
+            if (code === void) code = target;
+        } else owner = target;
+        if (typeof code == "String") separator = code;
+        else if (code == 9) separator = "\t";
+    }
+    function initStorage(storage, mode = "") {
+        var lines = [];
+        lines.load(storage, mode);
+        initString(lines.join("\n"));
+    }
+    function initString(text) {
+        _text = text;
+        _position = 0;
+        currentLineNumber = 0;
+    }
+    function getLineNo() { return currentLineNumber; }
+    function getNextLine() {
+        if (_position >= _text.length) return void;
+        var row = [], value = "", quoted = false;
+        while (_position < _text.length) {
+            var c = _text[_position++];
+            if (c == "\"" && (quoted || value.length == 0)) {
+                if (quoted && _text[_position] == "\"") { value += "\""; _position++; }
+                else quoted = !quoted;
+            } else if (!quoted && c == separator) {
+                row.add(value);
+                value = "";
+            } else if (!quoted && (c == "\n" || c == "\r")) {
+                if (c == "\r" && _text[_position] == "\n") _position++;
+                currentLineNumber++;
+                row.add(value);
+                return row;
+            } else value += c;
+        }
+        currentLineNumber++;
+        row.add(value);
+        return row;
+    }
+    function nextLine() { return getNextLine(); }
+    function parseStorage(storage, mode = "") {
+        initStorage(storage, mode);
+        var row;
+        while ((row = getNextLine()) !== void) doLine(row);
+    }
+    function doLine(row) { }
+}

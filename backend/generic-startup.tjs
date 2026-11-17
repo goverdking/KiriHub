@@ -1,0 +1,28 @@
+// Basic KAG adapter. Game-specific plugin stubs are intentionally excluded.
+global.KirikiriPolyfillRoot = "file://./webcompat/";
+// Prefer the compiled contracts before loading compatibility fallbacks.
+Plugins.link("csvParser.dll");
+Plugins.link("addFont.dll");
+Plugins.link("TextRender.dll");
+Plugins.link("layerExDraw.dll");
+Plugins.link("AlphaMovie.dll");
+Scripts.execStorage(global.KirikiriPolyfillRoot + "PolyfillInitialize.tjs");
+if (typeof global.CSVParser !== "Object") {
+    Scripts.execStorage(global.KirikiriPolyfillRoot + "web-csv.tjs");
+}
+// Some KAGEX font helpers use the System API name for the same font registration.
+if (typeof global.System.addFont !== "Object") {
+    global.System.addFont = function(storage, *) {
+        if (Storages.getPlacedPath(storage) == "") return void;
+        return global.Font.addFont(storage).count;
+    };
+}
+// Browser keyboard events are delivered by SDL; there are no Win32 message IDs.
+if (typeof global.Window.getNotificationNum !== "Object") {
+    global.Window.getNotificationNum = function(*) { return 0; };
+}
+if (typeof global.Window.setMessageHook !== "Object") {
+    global.Window.setMessageHook = function(*) { return false; };
+}
+Scripts.execStorage("file://./data.xp3>startup.tjs");
+Debug.message("WEB_COMPAT_STARTUP_COMPLETE");
